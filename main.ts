@@ -34,6 +34,8 @@ const ACCEPTABLE_NOT_OK_STATUS: Record<string, number> = {
 const domParser = new DOMParser();
 const markdownIt = MarkdownIt({ html: true, linkify: true })
   .use(anchorPlugin, { slugify }); // this is what vuepress uses.
+markdownIt.linkify.set({ fuzzyLink: false });
+
 const fetchWithRetries = getRetryingFetch(RETRY_FAILED_FETCH, MAX_RETRIES);
 
 // All anchors that are actually present in the file or website.
