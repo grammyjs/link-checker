@@ -87,6 +87,7 @@ export function getRetryingFetch(
 /** Some redirections are okay, so we ignore those changes */
 export function isValidRedirection(from: string, to: string) {
   const general = (from: string, to: string) => (
+    (from === to) || // for www's and https's general calls.
     (
       // CASE 1:
       from.includes("deno.land/x/") && // a third-party module
