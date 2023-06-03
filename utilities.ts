@@ -103,7 +103,7 @@ export function isValidRedirection(from: string, to: string) {
     // CASE 4: maybe a slash was removed or added --> I don't think we should care.
     ((to + "/" == from) || (from + "/" == to)) ||
     // CASE 5: maybe some search params was appended --> like a language code?
-    to.includes(from + "?") ||
+    to.includes(from + "?") || to.includes(from.split("#")[0] + "?") ||
     // CASE 6: Login redirections; e.g., firebase console -> google login
     ((to.includes("accounts.google.com") && to.includes("signin")) || // Google
       (to.includes("github.com/login?return_to="))) // Github
