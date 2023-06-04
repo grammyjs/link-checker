@@ -306,7 +306,7 @@ Using .html instead of .md: ${pad(issueCount.htmlInsteadOfMd)}
        DOM parsing failure: ${pad(issueCount.domParseFailure)}
       Unknown type of link: ${pad(issueCount.unknownLinkType)}
 ----------------------------${"-".repeat(maxDistance)}
-                    Total : ${issueCount.total}`);
+                     Total: ${issueCount.total}`);
 
 if (issueCount.total > 0) {
   Deno.exit(1); // for CI purposes
