@@ -20,6 +20,8 @@ import {
 } from "./utilities.ts";
 import type { Issue } from "./types.ts";
 
+const { red, blue, cyan, dim, magenta, bold } = colors;
+
 const INDEX_FILE = "README.md";
 const ALLOW_HTML_INSTEAD_OF_MD = false;
 const RETRY_FAILED_FETCH = true;
@@ -32,8 +34,10 @@ const ACCEPTABLE_NOT_OK_STATUS: Record<string, number> = {
 // === Prerequisites === //
 
 const domParser = new DOMParser();
-const markdownIt = MarkdownIt({ html: true, linkify: true })
-  .use(anchorPlugin, { slugify }); // this is what vuepress uses.
+// The following configuration is a duplicate of vitepress's
+// markdown-it configuration. It needs to updated as vitepress updates.
+const markdownIt = MarkdownIt({ html: true, linkify: true });
+markdownIt.use(anchorPlugin, { slugify });
 markdownIt.linkify.set({ fuzzyLink: false });
 
 const fetchWithRetries = getRetryingFetch(RETRY_FAILED_FETCH, MAX_RETRIES);
@@ -47,17 +51,20 @@ const issues: Record<string, Issue[]> = {};
 const directory = Deno.args[0];
 if (directory == null || directory.trim() === "") {
   log(
-    "%cUsing current working directory as the website content root directory%c",
-    "magenta",
+    magenta(
+      "No directory specified: using current working directory as the website content root directory",
+    ),
   );
 }
+
 let fileCount = 0;
 const linkCount = { external: 0, local: 0 };
 await findLinksFromFiles(directory ?? ".");
-log(`%cINFO%c Read ${fileCount} markdown files`, "magenta");
+
+log(`${magenta("INFO")} Read ${fileCount} markdown files`);
 log(
-  `%cINFO%c Found ${linkCount.external} external and ${linkCount.local} local links`,
-  "magenta",
+  magenta("INFO"),
+  `Found ${linkCount.external} external and ${linkCount.local} local links`,
 );
 
 async function findLinksFromFiles(directory: string) {
@@ -148,7 +155,7 @@ async function resolveLocalFileLink(
 
 // === Manage External Links === //
 
-let fetchCount = 0;
+let fetchCount = 1;
 
 for (const file in links) { // goes through each local file...
   for (const url_ of links[file]) { // ...and through the links in each file.
@@ -165,7 +172,8 @@ for (const file in links) { // goes through each local file...
     if (anchor != null) usedAnchors[root][file].add(anchor);
 
     const url = transformURL(url_);
-    log(`%cFETCH%c (${colors.dim(`${++fetchCount}`)}) ${root}`, "blue");
+    log(blue("FETCH"), `(${colors.dim(`${fetchCount++}`)}) ${root}`);
+
     const response = await fetchWithRetries(url);
     if (response == null) {
       delete usedAnchors[root];
@@ -182,7 +190,7 @@ for (const file in links) { // goes through each local file...
     if (!response.ok && ACCEPTABLE_NOT_OK_STATUS[url_] != response.status) {
       issues[file] ??= [];
       issues[file].push({ type: "notOk", reference: url_ });
-      log(`%cNOT OK%c : ${response.status} ${response.statusText}`, "red");
+      log(red("NOT OK"), `${response.status} ${response.statusText}`);
     }
 
     // For getting list of actual anchors we need to parse the docuement.
@@ -203,12 +211,12 @@ for (const file in links) { // goes through each local file...
     } catch (err) {
       issues[file] ??= [];
       issues[file].push({ type: "domParseFailure", reference: url_ });
-      log("%cERROR%c Couldn't parse the text (error below), skipping", "red");
-      console.log(err);
+      log(red("ERROR"), "Couldn't parse the text (error below), skipping");
+      console.error(err);
       continue;
     }
 
-    allAnchors[root] = getAnchors(document);
+    allAnchors[root] = getAnchors(document, { includeHref: true });
   }
 }
 
@@ -230,13 +238,11 @@ for (const root in usedAnchors) {
   }
 }
 
-const d = decodeURIComponent;
-const { red: r, blue: b, cyan: c, gray } = colors;
-
 // === Report Generation and Summarization === //
 
-const issueCount: Record<Issue["type"] | "total", number> = {
-  total: 0,
+let totalIssues = 0;
+
+const issueCount: Record<Issue["type"], number> = {
   missingAnchor: 0,
   htmlInsteadOfMd: 0,
   fileNotFound: 0,
@@ -248,55 +254,55 @@ const issueCount: Record<Issue["type"] | "total", number> = {
 
 const sortedFiles = Object.keys(issues).sort((a, b) => a.localeCompare(b));
 
-log(`\n%cINFO%c Found issues in ${sortedFiles.length} files`, "magenta");
+log(`\n${magenta("INFO")} Found issues in ${sortedFiles.length} files`);
 
 for (const file of sortedFiles) {
   const issueList = issues[file];
-  issueCount.total += issueList.length;
+  totalIssues += issueList.length;
 
-  let report = colors.bold(r(`\n${file} (${issueList.length})`));
+  let report = bold(red(`\n${file} (${issueList.length})`));
 
   for (const issue of issueList) {
     issueCount[issue.type]++;
     const message = generateIssueMessage(issue);
-    report += `\n ${gray("-->")} ${message}`;
+    report += `\n ${dim("-->")} ${message}`;
   }
 
-  console.log(report);
+  log(report);
 }
 
 function generateIssueMessage(issue: Issue) {
   // deno-fmt-ignore
   switch (issue.type) {
     case "missingAnchor":
-      return `${c(issue.root)} does not have an anchor ${b(d(issue.anchor))}.`;
+      return `${cyan(issue.root)} does not have an anchor ${blue(decodeURIComponent(issue.anchor))}.`;
     case "htmlInsteadOfMd": {
       const [root, anchor] = issue.reference.split("#");
-      return `The "${b(root)}" in ${b(`${root}#${d(anchor)}`)} should be ending with ".md" instead of ".html".`;
+      return `The ${blue(`${bold(root)}#${decodeURIComponent(anchor)}`)} should be ending with ".md" instead of ".html".`;
     }
     case "fileNotFound": {
       const [root] = issue.reference.split("#");
-      return `The linked file ${c(root)} does not exist.`;
+      return `The linked file ${cyan(root)} does not exist.`;
     }
     case "redirected":
-      return `${c(issue.from)} was redirected to ${c(issue.to)}.`;
+      return `${cyan(issue.from)} was redirected to ${cyan(issue.to)}.`;
     case "notOk":
-      return `${c(issue.reference)} returned a non-ok status code.`;
+      return `${cyan(issue.reference)} returned a non-ok status code.`;
     case "domParseFailure":
-      return `Couldn't parse the document at ${b(issue.reference)}.`;
+      return `Couldn't parse the document at ${blue(issue.reference)}.`;
     case "unknownLinkType":
-      return `Unknown type of link: ${c(issue.reference)}`;
+      return `Unknown type of link: ${cyan(issue.reference)}`;
   }
 }
 
-const maxDistance = issueCount.total.toString().length;
+const maxDistance = totalIssues.toString().length;
 
 function pad(x: number) {
   return x.toString().padStart(maxDistance, " ");
 }
 
-console.log(`
-${colors.bold("SUMMARY")}
+log(`
+${bold("SUMMARY")}
 ----------------------------${"-".repeat(maxDistance)}
            Missing anchors: ${pad(issueCount.missingAnchor)}
 Using .html instead of .md: ${pad(issueCount.htmlInsteadOfMd)}
@@ -306,8 +312,8 @@ Using .html instead of .md: ${pad(issueCount.htmlInsteadOfMd)}
        DOM parsing failure: ${pad(issueCount.domParseFailure)}
       Unknown type of link: ${pad(issueCount.unknownLinkType)}
 ----------------------------${"-".repeat(maxDistance)}
-                     Total: ${issueCount.total}`);
+                     Total: ${totalIssues}`);
 
-if (issueCount.total > 0) {
+if (totalIssues > 0) {
   Deno.exit(1); // for CI purposes
 }

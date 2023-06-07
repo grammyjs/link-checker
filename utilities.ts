@@ -1,13 +1,11 @@
-import { type HTMLDocument, MarkdownIt } from "./deps.ts";
-import { type FetchOptions } from "./types.ts";
+import { colors, type HTMLDocument } from "./deps.ts";
+import type { FetchOptions, MarkdownItToken } from "./types.ts";
 
 export function warn(text: string) {
   console.warn(`%cWARN%c ${text}`, "color: yellow", "color: none");
 }
 
-export function log(text: string, color: string) {
-  console.log(text, `color: ${color}`, "color: none");
-}
+export const log = console.log;
 
 // deno-fmt-ignore
 const ID_TAGS = ["section", "h1", "h2", "h3", "h4", "h5", "h6", "div", "a"];
@@ -72,12 +70,12 @@ export function getRetryingFetch(
       } catch (err) {
         error = err;
         if (!RETRY_FAILED_FETCH) break;
-        log(`%cINFO%c Retrying (${retries + 1})`, "magenta");
+        log(colors.magenta("INFO"), `Retrying (${retries + 1})`);
       }
       retries++;
     } while (retries < MAX_RETRIES && response == null);
     if (response == null) {
-      log(`%cFailed%c Couldn't get a proper response`, "red");
+      log(colors.red("ERROR"), "Couldn't get a proper response");
       console.error(error);
     }
     return response;
@@ -131,9 +129,7 @@ export function isValidAnchor(root: string, all: Set<string>, anchor: string) {
   return false;
 }
 
-type Token = ReturnType<InstanceType<typeof MarkdownIt>["parse"]>[number];
-
-export function filterLinksFromTokens(tokens: Token[]) {
+export function filterLinksFromTokens(tokens: MarkdownItToken[]) {
   const links: string[] = [];
   for (const token of tokens) {
     if (token.type === "link_open") {
