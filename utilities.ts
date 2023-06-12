@@ -1,6 +1,10 @@
 import { colors, type HTMLDocument } from "./deps.ts";
 import type { FetchOptions, MarkdownItToken } from "./types.ts";
 
+const VALID_REDIRECTIONS: Record<string, string> = {
+  "https://localtunnel.me": "https://theboroer.github.io/localtunnel-www/",
+};
+
 export function warn(text: string) {
   console.warn(`%cWARN%c ${text}`, "color: yellow", "color: none");
 }
@@ -84,6 +88,8 @@ export function getRetryingFetch(
 
 /** Some redirections are okay, so we ignore those changes */
 export function isValidRedirection(from: string, to: string) {
+  if (VALID_REDIRECTIONS[from] === to) return true;
+
   const general = (from: string, to: string) => (
     (from === to) || // for www's and https's general calls.
     (

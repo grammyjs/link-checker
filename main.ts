@@ -20,7 +20,7 @@ import {
 } from "./utilities.ts";
 import type { Issue } from "./types.ts";
 
-const { red, blue, cyan, dim, magenta, bold } = colors;
+const { red, blue, cyan, dim, magenta, bold, green } = colors;
 
 const INDEX_FILE = "README.md";
 const ALLOW_HTML_INSTEAD_OF_MD = false;
@@ -254,7 +254,6 @@ const issueCount: Record<Issue["type"], number> = {
 
 const sortedFiles = Object.keys(issues).sort((a, b) => a.localeCompare(b));
 
-log(`\n${magenta("INFO")} Found issues in ${sortedFiles.length} files`);
 
 for (const file of sortedFiles) {
   const issueList = issues[file];
@@ -312,8 +311,11 @@ Using .html instead of .md: ${pad(issueCount.htmlInsteadOfMd)}
        DOM parsing failure: ${pad(issueCount.domParseFailure)}
       Unknown type of link: ${pad(issueCount.unknownLinkType)}
 ----------------------------${"-".repeat(maxDistance)}
-                     Total: ${totalIssues}`);
+                     Total: ${totalIssues}\n`);
 
 if (totalIssues > 0) {
+  log(`\n${red("ERROR")} Found ${totalIssues} issues in ${sortedFiles.length} files`);
   Deno.exit(1); // for CI purposes
+} else {
+  log(green("No issues found!"));
 }
