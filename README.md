@@ -11,6 +11,6 @@ To use the tool locally, clone the
 `site/docs/` directory and run the following:
 
 ```sh
-> deno run --allow-read --allow-net \
+$ deno run --allow-read --allow-net \
   https://raw.githubusercontent.com/grammyjs/link-checker/main/main.ts
 ```
