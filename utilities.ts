@@ -43,7 +43,7 @@ export function transformURL(url: string) {
     warn("Changing t.me to telegram.me for convenience");
     url = url.replace("://t.me/", "://telegram.me/");
   }
-  return url;
+  return decodeURI(url);
 }
 
 const FETCH_OPTIONS: FetchOptions = {
