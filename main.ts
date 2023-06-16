@@ -98,8 +98,7 @@ async function findLinksFromFiles(directory: string) {
     fileCount++;
 
     const filtered = filterLinksFromTokens(tokens);
-    for (let link of filtered) {
-      link = decodeURI(link);
+    for (const link of filtered) {
       if (link.startsWith("http") && link.includes("://")) { // external link.
         links[path] ??= new Set();
         links[path].add(link);
