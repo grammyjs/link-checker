@@ -1,5 +1,14 @@
 import { anchorPlugin, colors, DOMParser, extname, HTMLDocument, join, MarkdownIt, slugify } from "./deps.ts";
-import { DenoModuleDocLink, GitHubRepositoryLink, GroupedLinks, Issue, MarkdownFile, MarkdownItToken, MissingAnchorIssue, ParsedMarkdown } from "./types.ts";
+import {
+  DenoModuleDocLink,
+  GitHubRepositoryLink,
+  GroupedLinks,
+  Issue,
+  MarkdownFile,
+  MarkdownItToken,
+  MissingAnchorIssue,
+  ParsedMarkdown,
+} from "./types.ts";
 import { ACCEPTABLE_NOT_OK_STATUS, getRetryingFetch, isValidAnchor, isValidRedirection, transformURL } from "./fetch.ts";
 
 const RETRY_FAILED_FETCH = true;
@@ -179,7 +188,6 @@ export function findMissingAnchors(
   return issues;
 }
 
-
 function isDenoModuleDocLink(url: URL): boolean {
   const pathSegments = url.pathname.split("/");
   return url.hostname === "deno.land" && pathSegments.length >= 4 &&
@@ -230,7 +238,6 @@ export function groupLinks(links: Set<string>): GroupedLinks {
 
   return { denoModuleDoc, githubRepo, otherLinks };
 }
-
 
 function getReportMessage(issue: Issue): string {
   switch (issue.type) {
