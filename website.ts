@@ -1,7 +1,6 @@
 import { extname, join } from "./deps.ts";
-import { checkExternalLink, checkRelativeLink, findMissingAnchors, parseMarkdownFile, prepareReport } from "./refactor.ts";
+import { checkExternalLink, checkRelativeLink, findMissingAnchors, parseMarkdownFile, prepareReport } from "./utilities.ts";
 import { Issue } from "./types.ts";
-import { strom } from "https://deno.land/x/strom@0.2.0/mod.ts";
 
 const INDEX_FILENAME = "README.md";
 const ALLOW_HTML_EXTENSION = false;
