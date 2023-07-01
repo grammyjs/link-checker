@@ -26,25 +26,6 @@ interface MarkdownFile {
   issues: Issue[];
 }
 
-interface DenoModuleDocLink {
-  [moduleName: string]: {
-    [filepath: string]: {
-      symbols: Set<string>;
-      anchors: Set<string>;
-    };
-  };
-}
-
-interface GitHubRepositoryLink {
-  [owner: string]: { [repo: string]: Set<string> };
-}
-
-interface GroupedLinks {
-  denoModuleDoc: DenoModuleDocLink;
-  githubRepo: GitHubRepositoryLink;
-  otherLinks: Set<string>;
-}
-
 interface CommonIssue {
   type: "unknown_link_format" | "empty_dom" | "empty_anchor" | "no_response";
   reference: string;
@@ -96,14 +77,4 @@ type Issue =
   | MissingAnchorIssue
   | UnknownSymbolIssue;
 
-export type {
-  DenoModuleDocLink,
-  GitHubRepositoryLink,
-  GroupedLinks,
-  Issue,
-  MarkdownFile,
-  MarkdownItToken,
-  MissingAnchorIssue,
-  ParsedMarkdown,
-  UnknownSymbolIssue,
-};
+export type { Issue, MarkdownFile, MarkdownItToken, MissingAnchorIssue, ParsedMarkdown, UnknownSymbolIssue };

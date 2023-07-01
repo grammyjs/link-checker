@@ -1,14 +1,5 @@
 import { anchorPlugin, colors, DOMParser, extname, HTMLDocument, join, MarkdownIt, slugify } from "./deps.ts";
-import {
-  DenoModuleDocLink,
-  GitHubRepositoryLink,
-  GroupedLinks,
-  Issue,
-  MarkdownFile,
-  MarkdownItToken,
-  MissingAnchorIssue,
-  ParsedMarkdown,
-} from "./types.ts";
+import { Issue, MarkdownFile, MarkdownItToken, MissingAnchorIssue, ParsedMarkdown } from "./types.ts";
 import { ACCEPTABLE_NOT_OK_STATUS, getRetryingFetch, isValidAnchor, isValidRedirection, transformURL } from "./fetch.ts";
 
 const RETRY_FAILED_FETCH = true;
@@ -186,111 +177,6 @@ export function findMissingAnchors(
     }
   }
   return issues;
-}
-
-export function isDenoModuleDocLink(url: URL): boolean {
-  const pathSegments = url.pathname.split("/");
-  return url.hostname === "deno.land" && pathSegments.length >= 4 &&
-    (/^(x|std)$/.test(pathSegments[1])) && (/\.(t|j)s$/).test(pathSegments.at(-1)!);
-}
-
-function isGroupableGithubRepositoryLink(url: URL): boolean {
-  const pathSegments = url.pathname.split("/");
-  return url.hostname === "github.com" && (
-    (pathSegments.length === 3 || (pathSegments.length === 4 && pathSegments.at(-1) === "")) ||
-    ((pathSegments.length === 4 || (pathSegments.length === 5 && pathSegments.at(-1)! === "")) &&
-      (pathSegments[3] === "pulls" || pathSegments[3] === "issues")) ||
-    ((pathSegments[3] === "pull" || pathSegments[3] === "issues") && pathSegments[4] === "new")
-  );
-}
-
-export function groupLinks(links: Set<string>): GroupedLinks {
-  const denoModuleDoc: DenoModuleDocLink = {};
-  const githubRepo: GitHubRepositoryLink = {};
-  const otherLinks = new Set<string>();
-
-  for (const link of links) {
-    const url = new URL(link);
-    if (isDenoModuleDocLink(url)) {
-      const pathSegments = url.pathname.split("/");
-      const moduleName = pathSegments.slice(0, 3).join("/");
-      const filepath = pathSegments.slice(3).join("/");
-      const symbolParam = url.searchParams.get("s");
-      const anchor = url.hash.substring(1) === "" ? null : url.hash.substring(1);
-      denoModuleDoc[moduleName] ??= {};
-      denoModuleDoc[moduleName][filepath] ??= {
-        symbols: new Set(),
-        anchors: new Set(),
-      };
-      if (symbolParam != null) {
-        denoModuleDoc[moduleName][filepath].symbols.add(symbolParam);
-      }
-      if (anchor != null) {
-        denoModuleDoc[moduleName][filepath].anchors.add(anchor);
-      }
-    } else if (isGroupableGithubRepositoryLink(url)) {
-      const pathSegments = url.pathname.split("/");
-      const owner = pathSegments[1], repository = pathSegments[2];
-      const anchor = url.hash === "#" ? null : url.hash.substring(1);
-      githubRepo[owner] ??= {};
-      githubRepo[owner][repository] ??= new Set();
-      if (anchor != null) githubRepo[owner][repository].add(anchor);
-    } else {
-      otherLinks.add(link);
-    }
-  }
-
-  return { denoModuleDoc, githubRepo, otherLinks };
-}
-
-export async function resolveDenoModuleDocLinks(links: DenoModuleDocLink) {
-  const issues: Issue[] = [];
-  const allAnchors: Record<string, Set<string>> = {};
-
-  for (const modulePath in links) {
-    for (const filepath in links[modulePath]) {
-      const url = `https://deno.land${modulePath}/${filepath}`;
-      const props = links[modulePath][filepath];
-      const checkedLink = await checkExternalLink(url);
-      if (checkedLink == null) {
-        issues.push({ type: "no_response", reference: url });
-        continue;
-      }
-      issues.push(...checkedLink.issues);
-      if (checkedLink.anchors != null) {
-        for (const anchor of props.anchors) {
-          if (checkedLink.anchors.has(anchor)) continue;
-          issues.push({ type: "missing_anchor", anchor, reference: url });
-        }
-      }
-      if (checkedLink.document != null) {
-        console.log(checkedLink.document.getElementsByTagName("a").map((e) => e.getAttribute("href")));
-        const actualSymbols = new Set(
-          (checkedLink.document.getElementsByTagName("a")
-            .map((element) => element.getAttribute("href"))
-            .filter((href) => href != null && URL.canParse(href)) as string[])
-            .filter((href) => isDenoModuleDocLink(new URL(href)))
-            .filter((href) => new URL(href).searchParams.get("s") === "Api")
-            .map((href) => new URL(href).searchParams.get("s") as string),
-        );
-        for (const symbol of props.symbols) {
-          if (actualSymbols.has(symbol)) continue;
-          issues.push({ type: "unknown_symbol", reference: url, symbol });
-        }
-      }
-    }
-  }
-
-  return { issues, allAnchors };
-}
-
-export async function resolveGithubLinks (links: GitHubRepositoryLink) {
-  const issues: Issue[] = [];
-  for (const owner in links) {
-    for (const repo in links[owner]) {
-      
-    }
-  }
 }
 
 function getReportMessage(issue: Issue): string {
