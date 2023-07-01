@@ -161,7 +161,7 @@ export async function checkExternalLink(link: string) {
     const document = domParser.parseFromString(content, "text/html");
     if (document == null) throw new Error("Failed to parse the webpage: skipping");
     const anchors = getAnchors(document, { includeHref: true });
-    return { issues, anchors };
+    return { issues, anchors, document };
   } catch (error) {
     issues.push({ type: "empty_dom", reference: link });
     console.error(red("error:"), error);
@@ -188,16 +188,20 @@ export function findMissingAnchors(
   return issues;
 }
 
-function isDenoModuleDocLink(url: URL): boolean {
+export function isDenoModuleDocLink(url: URL): boolean {
   const pathSegments = url.pathname.split("/");
   return url.hostname === "deno.land" && pathSegments.length >= 4 &&
     (/^(x|std)$/.test(pathSegments[1])) && (/\.(t|j)s$/).test(pathSegments.at(-1)!);
 }
 
-function isGithubRepositoryLink(url: URL): boolean {
-  const segments = url.pathname.split("/");
-  return url.hostname === "github.com" &&
-    (segments.length == 3 || (segments.length == 4 && segments.at(-1) === ""));
+function isGroupableGithubRepositoryLink(url: URL): boolean {
+  const pathSegments = url.pathname.split("/");
+  return url.hostname === "github.com" && (
+    (pathSegments.length === 3 || (pathSegments.length === 4 && pathSegments.at(-1) === "")) ||
+    ((pathSegments.length === 4 || (pathSegments.length === 5 && pathSegments.at(-1)! === "")) &&
+      (pathSegments[3] === "pulls" || pathSegments[3] === "issues")) ||
+    ((pathSegments[3] === "pull" || pathSegments[3] === "issues") && pathSegments[4] === "new")
+  );
 }
 
 export function groupLinks(links: Set<string>): GroupedLinks {
@@ -209,7 +213,7 @@ export function groupLinks(links: Set<string>): GroupedLinks {
     const url = new URL(link);
     if (isDenoModuleDocLink(url)) {
       const pathSegments = url.pathname.split("/");
-      const moduleName = pathSegments[2];
+      const moduleName = pathSegments.slice(0, 3).join("/");
       const filepath = pathSegments.slice(3).join("/");
       const symbolParam = url.searchParams.get("s");
       const anchor = url.hash.substring(1) === "" ? null : url.hash.substring(1);
@@ -224,10 +228,10 @@ export function groupLinks(links: Set<string>): GroupedLinks {
       if (anchor != null) {
         denoModuleDoc[moduleName][filepath].anchors.add(anchor);
       }
-    } else if (isGithubRepositoryLink(url)) {
-      const segments = url.pathname.split("/");
-      const owner = segments[1], repository = segments[2];
-      const anchor = url.hash.substring(1) === "" ? null : url.hash.substring(1);
+    } else if (isGroupableGithubRepositoryLink(url)) {
+      const pathSegments = url.pathname.split("/");
+      const owner = pathSegments[1], repository = pathSegments[2];
+      const anchor = url.hash === "#" ? null : url.hash.substring(1);
       githubRepo[owner] ??= {};
       githubRepo[owner][repository] ??= new Set();
       if (anchor != null) githubRepo[owner][repository].add(anchor);
@@ -237,6 +241,56 @@ export function groupLinks(links: Set<string>): GroupedLinks {
   }
 
   return { denoModuleDoc, githubRepo, otherLinks };
+}
+
+export async function resolveDenoModuleDocLinks(links: DenoModuleDocLink) {
+  const issues: Issue[] = [];
+  const allAnchors: Record<string, Set<string>> = {};
+
+  for (const modulePath in links) {
+    for (const filepath in links[modulePath]) {
+      const url = `https://deno.land${modulePath}/${filepath}`;
+      const props = links[modulePath][filepath];
+      const checkedLink = await checkExternalLink(url);
+      if (checkedLink == null) {
+        issues.push({ type: "no_response", reference: url });
+        continue;
+      }
+      issues.push(...checkedLink.issues);
+      if (checkedLink.anchors != null) {
+        for (const anchor of props.anchors) {
+          if (checkedLink.anchors.has(anchor)) continue;
+          issues.push({ type: "missing_anchor", anchor, reference: url });
+        }
+      }
+      if (checkedLink.document != null) {
+        console.log(checkedLink.document.getElementsByTagName("a").map((e) => e.getAttribute("href")));
+        const actualSymbols = new Set(
+          (checkedLink.document.getElementsByTagName("a")
+            .map((element) => element.getAttribute("href"))
+            .filter((href) => href != null && URL.canParse(href)) as string[])
+            .filter((href) => isDenoModuleDocLink(new URL(href)))
+            .filter((href) => new URL(href).searchParams.get("s") === "Api")
+            .map((href) => new URL(href).searchParams.get("s") as string),
+        );
+        for (const symbol of props.symbols) {
+          if (actualSymbols.has(symbol)) continue;
+          issues.push({ type: "unknown_symbol", reference: url, symbol });
+        }
+      }
+    }
+  }
+
+  return { issues, allAnchors };
+}
+
+export async function resolveGithubLinks (links: GitHubRepositoryLink) {
+  const issues: Issue[] = [];
+  for (const owner in links) {
+    for (const repo in links[owner]) {
+      
+    }
+  }
 }
 
 function getReportMessage(issue: Issue): string {

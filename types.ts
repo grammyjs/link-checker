@@ -28,7 +28,10 @@ interface MarkdownFile {
 
 interface DenoModuleDocLink {
   [moduleName: string]: {
-    [filepath: string]: { symbols: Set<string>; anchors: Set<string> };
+    [filepath: string]: {
+      symbols: Set<string>;
+      anchors: Set<string>;
+    };
   };
 }
 
@@ -43,7 +46,7 @@ interface GroupedLinks {
 }
 
 interface CommonIssue {
-  type: "unknown_link_format" | "empty_dom" | "empty_anchor";
+  type: "unknown_link_format" | "empty_dom" | "empty_anchor" | "no_response";
   reference: string;
 }
 
@@ -78,13 +81,20 @@ interface MissingAnchorIssue {
   anchor: string;
 }
 
+interface UnknownSymbolIssue {
+  type: "unknown_symbol";
+  reference: string;
+  symbol: string;
+}
+
 type Issue =
   | CommonIssue
   | NotOKResponseIssue
   | WrongExtensionIssue
   | LinkedFileNotFoundIssue
   | RedirectedIssue
-  | MissingAnchorIssue;
+  | MissingAnchorIssue
+  | UnknownSymbolIssue;
 
 export type {
   DenoModuleDocLink,
@@ -95,4 +105,5 @@ export type {
   MarkdownItToken,
   MissingAnchorIssue,
   ParsedMarkdown,
+  UnknownSymbolIssue,
 };
