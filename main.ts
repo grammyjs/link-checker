@@ -111,6 +111,7 @@ async function findLinksFromFiles(directory: string) {
         usedAnchors[path][path] ??= new Set();
         usedAnchors[path][path].add(link.substring(1));
       } else { // some other type -- MUST be an invalid one
+        issues[path] ??= [];
         issues[path].push({ type: "unknownLinkType", reference: link });
       }
     }
@@ -254,7 +255,6 @@ const issueCount: Record<Issue["type"], number> = {
 
 const sortedFiles = Object.keys(issues).sort((a, b) => a.localeCompare(b));
 
-
 for (const file of sortedFiles) {
   const issueList = issues[file];
   totalIssues += issueList.length;
@@ -314,7 +314,11 @@ Using .html instead of .md: ${pad(issueCount.htmlInsteadOfMd)}
                      Total: ${totalIssues}\n`);
 
 if (totalIssues > 0) {
-  log(`\n${red("ERROR")} Found ${totalIssues} issues in ${sortedFiles.length} files`);
+  log(
+    `\n${
+      red("ERROR")
+    } Found ${totalIssues} issues in ${sortedFiles.length} files`,
+  );
   Deno.exit(1); // for CI purposes
 } else {
   log(green("No issues found!"));
