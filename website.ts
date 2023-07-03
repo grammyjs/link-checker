@@ -1,6 +1,8 @@
 import { extname, join } from "./deps.ts";
-import { checkExternalLink, checkRelativeLink, findMissingAnchors, parseMarkdownFile, prepareReport } from "./utilities.ts";
-import { Issue } from "./types.ts";
+import { checkExternalLink, parseMarkdownContent } from "./utilities.ts";
+import { Issue, MarkdownFile, MissingAnchorIssue } from "./types.ts";
+import { generateIssueList } from "./issues.ts";
+import { isValidAnchor } from "./fetch.ts";
 
 const INDEX_FILENAME = "README.md";
 const ALLOW_HTML_EXTENSION = false;
@@ -13,7 +15,81 @@ if (Deno.args[0] == null) {
 const issues = await readMarkdownFiles(ROOT_DIRECTORY);
 
 for (const filepath of Object.keys(issues).sort((a, b) => a.localeCompare(b))) {
-  console.log(prepareReport(filepath, issues[filepath]));
+  console.log(filepath, `(${issues[filepath].length})`);
+  console.log(generateIssueList(issues[filepath]));
+}
+
+async function parseMarkdownFile(filepath: string): Promise<MarkdownFile> {
+  const content = await Deno.readTextFile(filepath);
+  const parsed = parseMarkdownContent(content, { anchors: true });
+
+  const issues: Issue[] = [];
+  const anchors = { all: parsed.anchors, used: new Set<string>() };
+  const links = { external: new Set<string>(), local: new Set<string>() };
+
+  for (const link of parsed.links) {
+    if ((/^https?:/).test(link) && URL.canParse(link)) {
+      links.external.add(link);
+    } else if (link.startsWith(".")) {
+      links.local.add(link);
+    } else if (link.startsWith("#")) {
+      anchors.used.add(link);
+    } else {
+      issues.push({ type: "unknown_link_format", reference: link });
+    }
+  }
+
+  return { anchors, links, issues };
+}
+
+export async function checkRelativeLink(
+  directory: string,
+  link: string,
+  options: { indexFile: string },
+) {
+  const hash = link.indexOf("#"); // Filepaths here shouldn't be containing '#'.
+  let root = link.substring(0, hash == -1 ? undefined : hash);
+  const anchor = hash == -1 ? null : link.substring(hash + 1);
+
+  let isHtmlExtension = false;
+
+  if (extname(root) === ".html") {
+    isHtmlExtension = true;
+    root = root.slice(0, -4) + "md";
+  }
+  if (extname(root) !== ".md") {
+    if (!root.endsWith("/")) root += "/";
+    root += options.indexFile;
+  }
+
+  const path = join(directory, root);
+  try {
+    await Deno.lstat(path);
+    return { anchor, exists: true, isHtmlExtension, path };
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) {
+      return { anchor, exists: false, isHtmlExtension, path };
+    }
+    throw error;
+  }
+}
+
+export function findMissingAnchors(
+  allAnchors: Record<string, Set<string>>,
+  usedAnchors: Record<string, Record<string, Set<string>>>,
+): Record<string, MissingAnchorIssue[]> {
+  const issues: Record<string, MissingAnchorIssue[]> = {};
+  for (const link in usedAnchors) {
+    const all = allAnchors[link] ?? new Set<string>();
+    for (const fileWithAnchorMention in usedAnchors[link]) {
+      for (const anchor of usedAnchors[link][fileWithAnchorMention]) {
+        if (isValidAnchor(all, link, anchor)) continue;
+        issues[fileWithAnchorMention] ??= [];
+        issues[fileWithAnchorMention].push({ type: "missing_anchor", anchor, reference: link });
+      }
+    }
+  }
+  return issues;
 }
 
 async function readMarkdownFiles(rootDirectory: string) {
@@ -88,7 +164,7 @@ async function readMarkdownFiles(rootDirectory: string) {
       for (const externalLink of parsed.links.external) {
         const { origin, pathname, search, hash } = new URL(externalLink);
         const root = origin + pathname + search;
-        const anchor = hash != "" ? hash.substring(1) : undefined;
+        const anchor = hash.substring(1) !== "" ? hash.substring(1) : undefined;
 
         if (usedAnchors[root] != null) {
           usedAnchors[root][filepath] ??= new Set();

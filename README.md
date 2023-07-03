@@ -20,5 +20,5 @@ code and some contains external links and inline links to lines of other files a
 
 ```sh
 $ deno run --allow-read --allow-net \
-  https://raw.githubusercontent.com/grammyjs/link-checker/main/repository.ts
+  https://raw.githubusercontent.com/grammyjs/link-checker/main/ts_doc.ts
 ```

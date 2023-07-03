@@ -5,44 +5,52 @@ type MarkdownItToken = ReturnType<
 >[number];
 
 interface ParsedMarkdown {
-  /** Available anchors in the document */
   anchors: Set<string>;
-  /** Links used in the markdown document */
   links: Set<string>;
 }
 
 interface MarkdownFile {
-  /** Available anchors in the document */
   anchors: {
     all: Set<string>;
     used: Set<string>;
   };
-  /** Links used in the markdown document */
   links: {
     external: Set<string>;
     local: Set<string>;
   };
-  /** Issues in the file */
   issues: Issue[];
 }
 
-interface CommonIssue {
-  type: "unknown_link_format" | "empty_dom" | "empty_anchor" | "no_response";
+interface BaseIssue {
   reference: string;
 }
 
-interface NotOKResponseIssue {
+interface UnknownLinkFormatIssue extends BaseIssue {
+  type: "unknown_link_format";
+}
+
+interface EmptyDOMIssue extends BaseIssue {
+  type: "empty_dom";
+}
+
+interface EmptyAnchorIssue extends BaseIssue {
+  type: "empty_anchor";
+}
+
+interface NoResponseIssue extends BaseIssue {
+  type: "no_response";
+}
+
+interface NotOKResponseIssue extends BaseIssue {
   type: "not_ok_response";
-  reference: string;
   status: number;
   statusText: string;
 }
 
-interface WrongExtensionIssue {
+interface WrongExtensionIssue extends BaseIssue {
   type: "wrong_extension";
   actual: string;
   expected: string;
-  reference: string;
 }
 
 interface LinkedFileNotFoundIssue {
@@ -56,25 +64,23 @@ interface RedirectedIssue {
   to: string;
 }
 
-interface MissingAnchorIssue {
+interface MissingAnchorIssue extends BaseIssue {
   type: "missing_anchor";
-  reference: string;
   anchor: string;
 }
 
-interface UnknownSymbolIssue {
-  type: "unknown_symbol";
-  reference: string;
-  symbol: string;
-}
+type ExternalLinkIssue =
+  | RedirectedIssue
+  | NotOKResponseIssue
+  | NoResponseIssue
+  | EmptyDOMIssue;
 
 type Issue =
-  | CommonIssue
-  | NotOKResponseIssue
+  | ExternalLinkIssue
   | WrongExtensionIssue
   | LinkedFileNotFoundIssue
-  | RedirectedIssue
   | MissingAnchorIssue
-  | UnknownSymbolIssue;
+  | UnknownLinkFormatIssue
+  | EmptyAnchorIssue;
 
-export type { Issue, MarkdownFile, MarkdownItToken, MissingAnchorIssue, ParsedMarkdown, UnknownSymbolIssue };
+export type { ExternalLinkIssue, Issue, MarkdownFile, MarkdownItToken, MissingAnchorIssue, ParsedMarkdown };

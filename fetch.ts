@@ -3,11 +3,14 @@ import { colors } from "./deps.ts";
 export const ACCEPTABLE_NOT_OK_STATUS: Record<string, number> = {
   "https://dash.cloudflare.com/login": 403,
   "https://dash.cloudflare.com/?account=workers": 403,
+  "https://api.telegram.org/file/bot": 404,
 };
 
 const VALID_REDIRECTIONS: Record<string, string> = {
   "https://localtunnel.me/": "https://theboroer.github.io/localtunnel-www/",
   "https://nodejs.org/": "https://nodejs.org/en",
+  "https://api.telegram.org/": "https://core.telegram.org/bots",
+  "https://t.me/name-of-your-bot?start=custom-payload": "https://telegram.org/",
 };
 
 const FETCH_OPTIONS: Parameters<typeof fetch>[1] = {
@@ -57,41 +60,53 @@ export function transformURL(link: string) {
 }
 
 /** Some redirections are okay, so we ignore those changes */
-export function isValidRedirection(from: string, to: string) {
-  if (VALID_REDIRECTIONS[from] === to) return true;
+export function isValidRedirection(from: URL, to: URL) {
+  // --- Known cases ---
+  if (VALID_REDIRECTIONS[from.href] === to.href) return true;
 
   // --- General cases ---
 
-  const general = (from: string, to: string) => (
-    // (0) For www and https checks' general calls.
-    (from === to) ||
-    // (1) A third-party Deno module, supposed to be redirected to the latest
-    // version, and it does get redirected to the latest version.
-    (from.includes("deno.land/x/") && !from.includes("@") && to.includes("@")) ||
-    // (2) A link to Deno Manual, and it is supposed to be redirected to the
-    // latest version. And it does get redirected!
-    (from.includes("deno.com/manual/") && to.includes("@")) ||
-    // (3) Shortened https://youtu.be/{id} links redirecting to https://youtube.com/watch?v={id} links.
-    to.includes(from.replace(new URL(from).origin + "/", "?v=")) ||
-    // (4) Simply a slash was removed or added (I don't think we should care).
-    ((to + "/" == from) || (from + "/" == to)) ||
-    // (5) Maybe some search params was appended: like a language code or something.
-    to.includes(from + "?") || to.includes(from.split("#")[0] + "?") ||
-    to.includes(from + "&") || to.includes(from.split("#")[0] + "&") ||
-    // (6) Login redirections; e.g., Firebase Console -> Google Account Login
-    (
-      (to.includes("accounts.google.com") && to.includes("signin")) || // Google
-      (to.includes("github.com/login?return_to=")) // Github
-    )
-  );
+  const general = (from: URL, to: URL) => {
+    const segments = { from: from.pathname.split("/"), to: to.pathname.split("/") };
+    return (
+      // (0) For www and https checks' general calls.
+      (from.href === to.href) ||
+      // (1) A third-party Deno module, supposed to be redirected to the latest
+      // version, and it does get redirected to the latest version.
+      (from.hostname === "deno.land" && to.hostname === "deno.land" &&
+        (
+          (from.pathname.startsWith("/x/") && segments.from[2] != null && !segments.from[2].includes("@") &&
+            to.pathname.startsWith("/x/") && segments.to[2] != null && segments.to[2].includes("@")) ||
+          (from.pathname.startsWith("/std/") && to.pathname.startsWith("/std@"))
+        )) ||
+      // (2) A link to Deno Manual, and it is supposed to be redirected to the
+      // latest version. And it does get redirected!
+      (from.hostname === "deno.com" && from.pathname.startsWith("/manual/") &&
+        to.hostname === "deno.com" && to.pathname.startsWith("/manual@")) ||
+      // (3) Shortened https://youtu.be/{id} links redirecting to https://youtube.com/watch?v={id} links.
+      (from.hostname === "youtu.be" && to.hostname === "www.youtube.com" && to.pathname === "/watch" &&
+        to.searchParams.get("v") === from.pathname.substring(1)) ||
+      // (4) Simply a slash was removed or added (I don't think we should care).
+      (from.host === to.host && ((to.pathname + "/" === from.pathname) || (from.pathname + "/" === to.pathname))) ||
+      // (5) Maybe some search params was appended: like a language code or something.
+      (from.host === to.host && from.pathname === to.pathname && from.searchParams.size !== to.searchParams.size) ||
+      // (6) Login redirections; e.g., Firebase Console -> Google Account Login
+      (
+        (to.hostname === "accounts.google.com" && segments.to[2] === "signin") || // Google
+        (to.hostname === "github.com" && to.pathname.startsWith("/login")) // Github
+      )
+    );
+  };
 
   // --- Special Cases ---
 
-  // (1) Added a www to the domain and any of the above.
-  const www = !from.includes("://www.") && to.includes("://www.") && general(from.replace("://", "://www."), to);
+  // (1) Added a www to the domain and any of the above. It's okay I guess.
+  const www = from.host.replace(/^/, "www.") === to.host &&
+    general(new URL(from.href.replace("://", "://www.")), to);
+
   // (2) Protocol changed to "https" from "http": (I think thats ignorable?)
-  const https = from.startsWith("http://") && to.startsWith("https://") &&
-    general(from.replace("http://", "https://"), to);
+  const https = from.protocol === "http:" && to.protocol === "https:" &&
+    general(new URL(from.href.replace("http", "https")), to);
 
   return general(from, to) || www || https;
 }
