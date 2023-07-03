@@ -6,6 +6,7 @@ import {
   HTMLDocument,
   join,
   MarkdownIt,
+  parse,
   slugify,
 } from "./deps.ts";
 import {
@@ -48,8 +49,25 @@ const links: Record<string, Set<string>> = {};
 const usedAnchors: Record<string, Record<string, Set<string>>> = {};
 const issues: Record<string, Issue[]> = {};
 
-const directory = Deno.args[0];
-if (directory == null || directory.trim() === "") {
+const flags = parse(Deno.args, {
+  string: ["dir"],
+  boolean: ["clean-url"],
+  default: { "clean-url": false },
+});
+let directory: string | number | undefined = flags.dir ?? flags._[0];
+const isCleanUrl = flags["clean-url"];
+
+if (directory != undefined && typeof directory !== "string") {
+  log(
+    red(
+      `Invalid argument: The path directory must be a string, but received ${typeof directory}.`,
+    ),
+  );
+  Deno.exit(1);
+}
+
+if (directory == undefined || directory?.trim() === "") {
+  directory = undefined;
   log(
     magenta(
       "No directory specified: using current working directory as the website content root directory",
@@ -124,16 +142,28 @@ async function resolveLocalFileLink(
   link: string,
 ) {
   let [root, anchor] = link.split("#");
-  if (root.endsWith(".html")) {
-    if (!ALLOW_HTML_INSTEAD_OF_MD) {
+  if (isCleanUrl === true) {
+    if (root.endsWith(".md") || root.endsWith(".html")) {
       issues[path] ??= [];
-      issues[path].push({ type: "htmlInsteadOfMd", reference: link });
+      issues[path].push({ type: "disallowExtension", reference: link });
+      root = root.replace(".html", ".md");
+    } else if (root.endsWith("/")) {
+      root += INDEX_FILE;
+    } else {
+      root += ".md";
     }
-    root = root.replace(".html", ".md");
-  }
-  if (!root.endsWith(".md")) { // links to the index
-    if (!root.endsWith("/")) root += "/";
-    root += INDEX_FILE;
+  } else {
+    if (root.endsWith(".html")) {
+      if (!ALLOW_HTML_INSTEAD_OF_MD) {
+        issues[path] ??= [];
+        issues[path].push({ type: "htmlInsteadOfMd", reference: link });
+      }
+      root = root.replace(".html", ".md");
+    }
+    if (!root.endsWith(".md")) { // links to the index
+      if (!root.endsWith("/")) root += "/";
+      root += INDEX_FILE;
+    }
   }
   const relativePath = join(directory, root);
   try {
@@ -251,6 +281,7 @@ const issueCount: Record<Issue["type"], number> = {
   notOk: 0,
   domParseFailure: 0,
   unknownLinkType: 0,
+  disallowExtension: 0,
 };
 
 const sortedFiles = Object.keys(issues).sort((a, b) => a.localeCompare(b));
@@ -292,6 +323,11 @@ function generateIssueMessage(issue: Issue) {
       return `Couldn't parse the document at ${blue(issue.reference)}.`;
     case "unknownLinkType":
       return `Unknown type of link: ${cyan(issue.reference)}`;
+    case "disallowExtension": {
+      const [root, anchor] = issue.reference.split("#");
+      const withAnchor = (anchor) ? `#${decodeURIComponent(anchor)}` : '';
+      return `The ${blue(`${bold(root)}${withAnchor}`)} should not have any file extensions at the end.`
+    }
   }
 }
 
@@ -311,6 +347,7 @@ Using .html instead of .md: ${pad(issueCount.htmlInsteadOfMd)}
           Non-200 response: ${pad(issueCount.notOk)}
        DOM parsing failure: ${pad(issueCount.domParseFailure)}
       Unknown type of link: ${pad(issueCount.unknownLinkType)}
+   Disallow extension file: ${pad(issueCount.disallowExtension)}
 ----------------------------${"-".repeat(maxDistance)}
                      Total: ${totalIssues}\n`);
 

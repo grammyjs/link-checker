@@ -6,7 +6,8 @@ interface GeneralIssue {
     | "fileNotFound"
     | "notOk"
     | "domParseFailure"
-    | "unknownLinkType";
+    | "unknownLinkType"
+    | "disallowExtension";
   reference: string;
 }
 
