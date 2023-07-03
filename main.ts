@@ -111,6 +111,7 @@ async function findLinksFromFiles(directory: string) {
         usedAnchors[path][path] ??= new Set();
         usedAnchors[path][path].add(link.substring(1));
       } else { // some other type -- MUST be an invalid one
+        issues[path] ??= [];
         issues[path].push({ type: "unknownLinkType", reference: link });
       }
     }
