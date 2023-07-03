@@ -254,7 +254,6 @@ const issueCount: Record<Issue["type"], number> = {
 
 const sortedFiles = Object.keys(issues).sort((a, b) => a.localeCompare(b));
 
-
 for (const file of sortedFiles) {
   const issueList = issues[file];
   totalIssues += issueList.length;
@@ -277,7 +276,8 @@ function generateIssueMessage(issue: Issue) {
       return `${cyan(issue.root)} does not have an anchor ${blue(decodeURIComponent(issue.anchor))}.`;
     case "htmlInsteadOfMd": {
       const [root, anchor] = issue.reference.split("#");
-      return `The ${blue(`${bold(root)}#${decodeURIComponent(anchor)}`)} should be ending with ".md" instead of ".html".`;
+      const withAnchor = (anchor) ? `#${decodeURIComponent(anchor)}` : '';
+      return `The ${blue(`${bold(root)}${withAnchor}`)} should be ending with ".md" instead of ".html".`;
     }
     case "fileNotFound": {
       const [root] = issue.reference.split("#");
@@ -314,7 +314,11 @@ Using .html instead of .md: ${pad(issueCount.htmlInsteadOfMd)}
                      Total: ${totalIssues}\n`);
 
 if (totalIssues > 0) {
-  log(`\n${red("ERROR")} Found ${totalIssues} issues in ${sortedFiles.length} files`);
+  log(
+    `\n${
+      red("ERROR")
+    } Found ${totalIssues} issues in ${sortedFiles.length} files`,
+  );
   Deno.exit(1); // for CI purposes
 } else {
   log(green("No issues found!"));
