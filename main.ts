@@ -49,7 +49,6 @@ const links: Record<string, Set<string>> = {};
 const usedAnchors: Record<string, Record<string, Set<string>>> = {};
 const issues: Record<string, Issue[]> = {};
 
-// https://examples.deno.land/command-line-arguments
 const flags = parse(Deno.args, {
   string: ["dir"],
   boolean: ["clean-url"],
