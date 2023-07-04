@@ -1,36 +1,106 @@
 import { colors } from "./deps.ts";
 import { Issue } from "./types.ts";
 
-const { red, cyan, dim, brightBlue, brightMagenta, yellow } = colors;
+const { red, cyan, dim, brightBlue, brightMagenta, yellow, bold } = colors;
 
 const LIST_BULLET = "—";
+
+const ISSUE_TITLES: Record<Issue["type"], string> = {
+  empty_dom: "Empty DOM contents",
+  redirected: "Redirections",
+  no_response: "Empty responses",
+  empty_anchor: "Empty anchors",
+  missing_anchor: "Missing anchors",
+  not_ok_response: "Non-OK response",
+  wrong_extension: "Wrong extension",
+  disallow_extension: "Disallowed extension",
+  unknown_link_format: "Unknown link type",
+  linked_file_not_found: "Missing file",
+};
+
+const MAX_TITLE_LENGTH = Object.values(ISSUE_TITLES)
+  .reduce((prevLength, title) => title.length > prevLength ? title.length : prevLength, 0) + 1;
 
 function makeIssueMessage(issue: Issue) {
   switch (issue.type) {
     case "unknown_link_format":
-      return `The link ${cyan(issue.reference)} seems to be a unknown type of link.\n` +
+      return `The link ${cyan(decodeURI(issue.reference))} seems to be a unknown type of link.\n` +
         yellow("Please open an issue about this here: https://github.com/grammyjs/link-checker/issues/new.");
     case "empty_dom":
-      return `The document at ${cyan(issue.reference)} can't seem to be properly parsed.`;
+      return `The document at ${cyan(decodeURI(issue.reference))} can't seem to be properly parsed.`;
     case "not_ok_response":
       return `The link at ${cyan(issue.reference)} responded with a not OK status code ${red(`${issue.status}`)}.` +
         (issue.statusText ? ` It says "${issue.statusText}"` : "");
     case "wrong_extension":
-      return `${cyan(issue.reference)} is ending with the extension ${yellow(issue.actual)} instead of ${
+      return `${cyan(decodeURI(issue.reference))} is ending with the extension ${yellow(issue.actual)} instead of ${
         yellow(issue.expected)
       }.`;
     case "linked_file_not_found":
       return `The linked file ${brightMagenta(issue.filepath)} does not exist.`;
     case "redirected":
-      return `The link ${cyan(issue.from)} was redirected to ${cyan(issue.to)}.`;
+      return `The link ${cyan(decodeURI(issue.from))} was redirected to ${cyan(decodeURI(issue.to))}.`;
     case "missing_anchor":
-      return `The webpage at ${cyan(issue.reference)} doesn't seem to be have the anchor ${brightBlue(issue.anchor)}`;
+      return `The webpage at ${cyan(decodeURI(issue.reference))} doesn't seem to be have the anchor ${
+        brightBlue(decodeURI(issue.anchor))
+      }`;
     case "empty_anchor":
-      return `The page ${cyan(issue.reference)} seems to be linked with an empty anchor.`;
+      return `The page ${cyan(decodeURI(issue.reference))} seems to be linked with an empty anchor.`;
     case "no_response":
-      return `There was no response from ${cyan(issue.reference)}.`;
+      return `There was no response from ${cyan(decodeURI(issue.reference))}.`;
+    case "disallow_extension":
+      return `The ${yellow(issue.extension)} extension is disallowed at here: ${brightMagenta(decodeURI(issue.reference))}.`;
     default:
       throw new Error("Invalid type of issue! This shouldn't be happening.");
+  }
+}
+
+export function prettySummary(issues: Record<string, Issue[]>) {
+  const counts: Record<Issue["type"], number> = {
+    empty_dom: 0,
+    redirected: 0,
+    no_response: 0,
+    empty_anchor: 0,
+    missing_anchor: 0,
+    not_ok_response: 0,
+    wrong_extension: 0,
+    disallow_extension: 0,
+    unknown_link_format: 0,
+    linked_file_not_found: 0,
+  };
+
+  for (const filepath in issues) {
+    for (const issue of issues[filepath]) {
+      counts[issue.type]++;
+    }
+  }
+
+  const totalIssues = Object.values(counts).reduce((p, c) => p + c, 0);
+  const maxCountLength = totalIssues.toString().length;
+
+  let summary = "";
+  for (const type_ in counts) {
+    const type = type_ as Issue["type"];
+    if (counts[type] === 0) continue;
+    const title = ISSUE_TITLES[type].padStart(MAX_TITLE_LENGTH, " ");
+    const count = counts[type].toString().padStart(maxCountLength, " ");
+    summary += `│ ${title} │ ${count} │\n`;
+  }
+
+  const MAX_LINE_LENGTH = summary.split("\n").reduce((p, c) => c.length > p ? c.length : p, 0);
+
+  if (totalIssues > 0) {
+    return {
+      totalIssues,
+      message: `┌${"─".repeat(MAX_LINE_LENGTH - 2)}┐\n` +
+        `│ ${bold("Summary")} ${" ".repeat(MAX_LINE_LENGTH - 12)} │\n` +
+        `├${"─".repeat(MAX_LINE_LENGTH - maxCountLength - 5)}┬${"─".repeat(maxCountLength + 2)}┤\n` +
+        `${summary}` +
+        `├${"─".repeat(MAX_TITLE_LENGTH + 2)}┼${"─".repeat(maxCountLength + 2)}┤\n` +
+        `│ ${"Total".padStart(MAX_TITLE_LENGTH, " ")} │ ${totalIssues} │\n` +
+        `└${"─".repeat(MAX_TITLE_LENGTH + 2)}┴${"─".repeat(maxCountLength + 2)}┘\n`,
+    };
+  } else {
+    return { totalIssues, message: "" };
   }
 }
 

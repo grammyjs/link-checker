@@ -1,4 +1,4 @@
-import { colors } from "./deps.ts";
+import { overwrite } from "./deps.ts";
 
 export const ACCEPTABLE_NOT_OK_STATUS: Record<string, number> = {
   "https://dash.cloudflare.com/login": 403,
@@ -38,7 +38,7 @@ export function getRetryingFetch(
       } catch (err) {
         error = err;
         if (!RETRY_FAILED_FETCH) break;
-        console.info(`Retrying (${retries + 1})`);
+        overwrite(`Retrying (${retries + 1})`);
       }
       retries++;
     } while (retries < MAX_RETRIES && response == null);
@@ -53,7 +53,6 @@ export function getRetryingFetch(
 export function transformURL(link: string) {
   const url = new URL(link);
   if (url.hostname === "t.me") { // Some ISPs have blocked t.me
-    console.info(colors.yellow("Changing t.me to telegram.me for convenience"));
     url.hostname = "telegram.me";
   }
   return url.toString();

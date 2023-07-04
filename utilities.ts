@@ -1,4 +1,4 @@
-import { anchorPlugin, colors, DOMParser, HTMLDocument, MarkdownIt, slugify } from "./deps.ts";
+import { anchorPlugin, colors, DOMParser, HTMLDocument, MarkdownIt, overwrite, slugify } from "./deps.ts";
 import { ExternalLinkIssue, MarkdownItToken, ParsedMarkdown } from "./types.ts";
 import { ACCEPTABLE_NOT_OK_STATUS, getRetryingFetch, isValidRedirection, transformURL } from "./fetch.ts";
 
@@ -10,7 +10,7 @@ const markdown = MarkdownIt({ html: true, linkify: true }).use(anchorPlugin, { s
 markdown.linkify.set({ fuzzyLink: false });
 const domParser = new DOMParser();
 const fetchWithRetries = getRetryingFetch(RETRY_FAILED_FETCH, MAX_RETRIES);
-const { red, brightBlue, brightMagenta } = colors;
+const { red, brightMagenta } = colors;
 
 export function parseMarkdownContent(content: string, options: { anchors: boolean }): ParsedMarkdown {
   const html = markdown.render(content, {});
@@ -20,6 +20,18 @@ export function parseMarkdownContent(content: string, options: { anchors: boolea
   const document = domParser.parseFromString(html, "text/html")!;
   const anchors = getAnchors(document, { includeHref: false });
   return { anchors, links };
+}
+
+export function parseLink(href: string) {
+  if (!URL.canParse(href)) { // looks like an local link
+    const hashPos = href.lastIndexOf("#");
+    if (hashPos === -1) return { root: href, anchor: undefined };
+    return { root: href.substring(0, hashPos), anchor: href.substring(hashPos + 1) };
+  }
+  const url = new URL(href);
+  const anchor = url.hash === "" ? undefined : url.hash.substring(1);
+  url.hash = "";
+  return { root: url.href, anchor };
 }
 
 function filterLinksFromTokens(tokens: MarkdownItToken[]) {
@@ -62,7 +74,6 @@ export async function checkExternalLink(link: string) {
   const issues: ExternalLinkIssue[] = [];
 
   const url = transformURL(link);
-  console.log(brightBlue("fetch"), decodeURI(url));
 
   const response = await fetchWithRetries(url);
   if (response == null) return;
@@ -73,14 +84,14 @@ export async function checkExternalLink(link: string) {
 
   if (!response.ok && ACCEPTABLE_NOT_OK_STATUS[link] != response.status) {
     issues.push({ type: "not_ok_response", reference: link, status: response.status, statusText: response.statusText });
-    console.error(red("not OK"), response.status, response.statusText);
+    overwrite(red("not OK"), response.status, response.statusText);
   }
 
   const contentType = response.headers.get("content-type");
   if (contentType == null) {
-    console.warn(brightMagenta("No Content-Type header was found in the response. Continuing anyway"));
+    overwrite(brightMagenta("No Content-Type header was found in the response. Continuing anyway"));
   } else if (!contentType.includes("text/html")) {
-    console.warn(brightMagenta(`Content-Type header is ${contentType}; continuing with HTML anyway`));
+    overwrite(brightMagenta(`Content-Type header is ${contentType}; continuing with HTML anyway`));
   }
 
   try {

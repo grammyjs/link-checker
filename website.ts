@@ -1,23 +1,40 @@
-import { extname, join } from "./deps.ts";
-import { checkExternalLink, parseMarkdownContent } from "./utilities.ts";
+import { colors, extname, join, overwrite, parse } from "./deps.ts";
+import { checkExternalLink, parseLink, parseMarkdownContent } from "./utilities.ts";
 import { Issue, MarkdownFile, MissingAnchorIssue } from "./types.ts";
-import { generateIssueList } from "./issues.ts";
-import { isValidAnchor } from "./fetch.ts";
+import { generateIssueList, prettySummary } from "./issues.ts";
+import { isValidAnchor, transformURL } from "./fetch.ts";
 
-const INDEX_FILENAME = "README.md";
-const ALLOW_HTML_EXTENSION = false;
-const ROOT_DIRECTORY = Deno.args[0] ?? ".";
+const args = parse(Deno.args, {
+  boolean: ["clean-url"],
+});
 
-if (Deno.args[0] == null) {
-  console.warn("No path was specified. Using the current directory as documentation source root.");
+if (args._.length > 1) {
+  console.log("Multiple directories were specified. Ignoring everything except the first one.");
 }
 
+const ALLOW_HTML_EXTENSION = false;
+const INDEX_FILE = "README.md";
+const ROOT_DIRECTORY = (args._[0] ?? ".").toString();
+
 const issues = await readMarkdownFiles(ROOT_DIRECTORY);
+
+const { totalIssues, message } = prettySummary(issues);
+
+if (totalIssues === 0) {
+  console.log(colors.green("You're good to go! No issues were found!"));
+  Deno.exit(0);
+} else {
+  console.log(colors.red(`Found ${totalIssues} issues! Here is a summary:\n`));
+}
+
+console.log(message);
 
 for (const filepath of Object.keys(issues).sort((a, b) => a.localeCompare(b))) {
   console.log(filepath, `(${issues[filepath].length})`);
   console.log(generateIssueList(issues[filepath]));
 }
+
+Deno.exit(1);
 
 async function parseMarkdownFile(filepath: string): Promise<MarkdownFile> {
   const content = await Deno.readTextFile(filepath);
@@ -44,31 +61,44 @@ async function parseMarkdownFile(filepath: string): Promise<MarkdownFile> {
 
 export async function checkRelativeLink(
   directory: string,
-  link: string,
+  localLink: string,
   options: { indexFile: string },
 ) {
-  const hash = link.indexOf("#"); // Filepaths here shouldn't be containing '#'.
-  let root = link.substring(0, hash == -1 ? undefined : hash);
-  const anchor = hash == -1 ? null : link.substring(hash + 1);
+  const issues: Issue[] = [];
+  let { root, anchor } = parseLink(localLink);
 
-  let isHtmlExtension = false;
-
-  if (extname(root) === ".html") {
-    isHtmlExtension = true;
-    root = root.slice(0, -4) + "md";
-  }
-  if (extname(root) !== ".md") {
-    if (!root.endsWith("/")) root += "/";
-    root += options.indexFile;
+  if (args["clean-url"]) {
+    if (extname(root) === ".html") {
+      issues.push({ type: "disallow_extension", reference: localLink, extension: "html" });
+      root = root.slice(0, -4) + "md";
+    } else if (extname(root) === ".md") {
+      issues.push({ type: "disallow_extension", reference: localLink, extension: "md" });
+    } else if (root.endsWith("/")) {
+      root += options.indexFile;
+    } else {
+      root += ".md";
+    }
+  } else {
+    if (extname(root) === ".html") {
+      if (!ALLOW_HTML_EXTENSION) {
+        issues.push({ type: "wrong_extension", actual: ".html", expected: ".md", reference: localLink });
+      }
+      root = root.slice(0, -4) + "md";
+    }
+    if (extname(root) !== ".md") {
+      if (!root.endsWith("/")) root += "/";
+      root += options.indexFile;
+    }
   }
 
   const path = join(directory, root);
   try {
     await Deno.lstat(path);
-    return { anchor, exists: true, isHtmlExtension, path };
+    return { anchor, issues, path };
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
-      return { anchor, exists: false, isHtmlExtension, path };
+      issues.push({ type: "linked_file_not_found", filepath: root });
+      return { anchor, issues, path };
     }
     throw error;
   }
@@ -103,11 +133,13 @@ async function readMarkdownFiles(rootDirectory: string) {
       const filepath = join(directory, entry.name);
 
       if (entry.isDirectory) {
+        overwrite(colors.magenta("reading directory"), filepath);
         await readDirectoryFiles(filepath);
         continue;
       }
 
       if (extname(entry.name) != ".md") continue;
+      overwrite(colors.magenta("reading"), filepath);
 
       const parsed = await parseMarkdownFile(filepath);
 
@@ -136,20 +168,15 @@ async function readMarkdownFiles(rootDirectory: string) {
 
       // --- Relative Links (Local files) ---
       for (const localLink of parsed.links.local) {
-        const linkedFile = await checkRelativeLink(directory, localLink, { indexFile: INDEX_FILENAME });
+        const linkedFile = await checkRelativeLink(directory, localLink, { indexFile: INDEX_FILE });
 
-        if (!ALLOW_HTML_EXTENSION && linkedFile.isHtmlExtension) {
+        if (linkedFile.issues.length > 0) {
           issues[filepath] ??= [];
-          issues[filepath].push({ type: "wrong_extension", actual: ".html", expected: ".md", reference: localLink });
-        }
-
-        if (!linkedFile.exists) {
-          issues[filepath] ??= [];
-          issues[filepath].push({ type: "linked_file_not_found", filepath: linkedFile.path });
+          issues[filepath].push(...linkedFile.issues);
         }
 
         if (linkedFile.anchor != null) {
-          if (linkedFile.anchor == "") {
+          if (linkedFile.anchor === "") {
             issues[filepath] ??= [];
             issues[filepath].push({ type: "empty_anchor", reference: localLink });
             continue;
@@ -162,9 +189,7 @@ async function readMarkdownFiles(rootDirectory: string) {
 
       // --- External Links ---
       for (const externalLink of parsed.links.external) {
-        const { origin, pathname, search, hash } = new URL(externalLink);
-        const root = origin + pathname + search;
-        const anchor = hash.substring(1) !== "" ? hash.substring(1) : undefined;
+        const { root, anchor } = parseLink(externalLink);
 
         if (usedAnchors[root] != null) {
           usedAnchors[root][filepath] ??= new Set();
@@ -178,7 +203,8 @@ async function readMarkdownFiles(rootDirectory: string) {
           [filepath]: new Set(anchor != null ? [anchor] : []),
         };
 
-        const checkedExternalLink = await checkExternalLink(externalLink);
+        overwrite(colors.blue("fetch"), transformURL(decodeURI(root)));
+        const checkedExternalLink = await checkExternalLink(root);
         if (checkedExternalLink == null) {
           delete usedAnchors[root];
           continue;

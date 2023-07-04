@@ -1,6 +1,6 @@
 import { doc } from "https://deno.land/x/deno_doc@0.62.0/mod.ts";
 import type { DocNode, JsDoc, JsDocTag, JsDocTagKind, Location } from "https://deno.land/x/deno_doc@0.62.0/types.d.ts";
-import { checkExternalLink, parseMarkdownContent } from "./utilities.ts";
+import { checkExternalLink, parseLink, parseMarkdownContent } from "./utilities.ts";
 import { ExternalLinkIssue, Issue } from "./types.ts";
 
 interface Link {
@@ -61,13 +61,6 @@ async function findLinks(module: string) {
   }
 
   return links;
-}
-
-function parseLink(href: string) {
-  const url = new URL(href);
-  const anchor = url.hash.substring(1) === "" ? undefined : url.hash.substring(1);
-  url.hash = "";
-  return { root: url.href, anchor };
 }
 
 function stripLinksFromJSDoc(doc: string) {
