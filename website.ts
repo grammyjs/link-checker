@@ -1,46 +1,16 @@
 import { default as anchorPlugin } from "https://esm.sh/markdown-it-anchor@8.6.7";
 import { slugify } from "https://esm.sh/@mdit-vue/shared@0.12.0";
 import { extname, join } from "https://deno.land/std@0.193.0/path/mod.ts";
-import { colors, domParser, MarkdownIt, overwrite, parse } from "./deps.ts";
+import { colors, domParser, MarkdownIt, overwrite } from "./deps.ts";
 import { isValidAnchor, transformURL } from "./fetch.ts";
-import { generateIssueList, prettySummary } from "./issues.ts";
 import type { Issue, MissingAnchorIssue } from "./types.ts";
 import { checkExternalLink, getAnchors, parseLink, parseMarkdownContent } from "./utilities.ts";
-
-const args = parse(Deno.args, { boolean: ["clean-url"] });
-
-if (args._.length > 1) {
-  console.log("Multiple directories were specified. Ignoring everything except the first one.");
-}
 
 const markdown = MarkdownIt({ html: true, linkify: true }).use(anchorPlugin, { slugify });
 markdown.linkify.set({ fuzzyLink: false });
 
 const ALLOW_HTML_EXTENSION = false;
 const INDEX_FILE = "README.md";
-const ROOT_DIRECTORY = (args._[0] ?? ".").toString();
-
-await main(ROOT_DIRECTORY);
-
-async function main(rootDir: string) {
-  const issues = await readMarkdownFiles(rootDir);
-  const { totalIssues, summary } = prettySummary(issues);
-
-  if (totalIssues === 0) {
-    console.log(colors.green("You're good to go! No issues were found!"));
-    Deno.exit(0);
-  }
-
-  console.log(colors.red(`Found ${totalIssues} issues in the documentation:\n`));
-  console.log(summary);
-
-  for (const filepath of Object.keys(issues).sort((a, b) => a.localeCompare(b))) {
-    console.log(filepath, `(${issues[filepath].length})`);
-    console.log(generateIssueList(issues[filepath]));
-  }
-
-  Deno.exit(1);
-}
 
 async function parseMarkdownFile(filepath: string) {
   const content = await Deno.readTextFile(filepath);
@@ -70,12 +40,12 @@ async function parseMarkdownFile(filepath: string) {
 export async function checkRelativeLink(
   directory: string,
   localLink: string,
-  options: { indexFile: string },
+  options: { indexFile: string; isCleanUrl: boolean },
 ) {
   const issues: Issue[] = [];
   let { root, anchor } = parseLink(localLink);
 
-  if (args["clean-url"]) {
+  if (options.isCleanUrl) {
     if (extname(root) === ".html") {
       issues.push({ type: "disallow_extension", reference: localLink, extension: "html" });
       root = root.slice(0, -4) + "md";
@@ -130,7 +100,7 @@ export function findMissingAnchors(
   return issues;
 }
 
-async function readMarkdownFiles(rootDirectory: string) {
+export async function readMarkdownFiles(rootDirectory: string, options: { isCleanUrl: boolean }) {
   const issues: Record<string, Issue[]> = {};
   const allAnchors: Record<string, Set<string>> = {};
   const usedAnchors: Record<string, typeof allAnchors> = {};
@@ -176,7 +146,10 @@ async function readMarkdownFiles(rootDirectory: string) {
 
       // --- Relative Links (Local files) ---
       for (const localLink of parsed.links.local) {
-        const linkedFile = await checkRelativeLink(directory, localLink, { indexFile: INDEX_FILE });
+        const linkedFile = await checkRelativeLink(directory, localLink, {
+          indexFile: INDEX_FILE,
+          isCleanUrl: options.isCleanUrl,
+        });
 
         if (linkedFile.issues.length > 0) {
           issues[filepath] ??= [];

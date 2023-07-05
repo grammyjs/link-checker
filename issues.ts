@@ -1,11 +1,11 @@
 import { colors } from "./deps.ts";
 import { Issue } from "./types.ts";
 
-const { red, cyan, dim, brightBlue, brightMagenta, yellow, bold } = colors;
+const { red, cyan, dim, brightBlue, brightMagenta, yellow } = colors;
 
 const LIST_BULLET = "—";
 
-const ISSUE_TITLES: Record<Issue["type"], string> = {
+export const ISSUE_TITLES: Record<Issue["type"], string> = {
   empty_dom: "Empty DOM contents",
   redirected: "Redirections",
   no_response: "Empty responses",
@@ -21,7 +21,7 @@ const ISSUE_TITLES: Record<Issue["type"], string> = {
 const MAX_TITLE_LENGTH = Object.values(ISSUE_TITLES)
   .reduce((prevLength, title) => title.length > prevLength ? title.length : prevLength, 0) + 1;
 
-function makeIssueMessage(issue: Issue) {
+export function makeIssueMessage(issue: Issue) {
   switch (issue.type) {
     case "unknown_link_format":
       return `The link ${cyan(decodeURI(issue.reference))} seems to be a unknown type of link.\n` +
@@ -95,7 +95,7 @@ export function prettySummary(issues: Record<string, Issue[]>) {
         `${summary}` +
         `├${"─".repeat(MAX_TITLE_LENGTH + 2)}┼${"─".repeat(maxCountLength + 2)}┤\n` +
         `│ ${"Total".padStart(MAX_TITLE_LENGTH, " ")} │ ${totalIssues} │\n` +
-        `└${"─".repeat(MAX_TITLE_LENGTH + 2)}┴${"─".repeat(maxCountLength + 2)}┘\n`,
+        `└${"─".repeat(MAX_TITLE_LENGTH + 2)}┴${"─".repeat(maxCountLength + 2)}┘`,
     };
   } else {
     return { totalIssues, message: "" };
