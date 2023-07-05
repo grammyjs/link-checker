@@ -1,6 +1,6 @@
 import { default as anchorPlugin } from "https://esm.sh/markdown-it-anchor@8.6.7";
 import { slugify } from "https://esm.sh/@mdit-vue/shared@0.12.0";
-import { extname, join } from "https://deno.land/std@0.192.0/path/mod.ts";
+import { extname, join } from "https://deno.land/std@0.193.0/path/mod.ts";
 import { colors, domParser, MarkdownIt, overwrite, parse } from "./deps.ts";
 import { isValidAnchor, transformURL } from "./fetch.ts";
 import { generateIssueList, prettySummary } from "./issues.ts";
