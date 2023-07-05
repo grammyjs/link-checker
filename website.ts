@@ -4,7 +4,7 @@ import { extname, join } from "https://deno.land/std@0.192.0/path/mod.ts";
 import { colors, domParser, MarkdownIt, overwrite, parse } from "./deps.ts";
 import { isValidAnchor, transformURL } from "./fetch.ts";
 import { generateIssueList, prettySummary } from "./issues.ts";
-import { Issue, MissingAnchorIssue } from "./types.ts";
+import type { Issue, MissingAnchorIssue } from "./types.ts";
 import { checkExternalLink, getAnchors, parseLink, parseMarkdownContent } from "./utilities.ts";
 
 const args = parse(Deno.args, { boolean: ["clean-url"] });

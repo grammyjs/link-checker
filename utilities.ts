@@ -1,6 +1,6 @@
-import { colors, domParser, HTMLDocument, MarkdownIt, overwrite } from "./deps.ts";
-import { ExternalLinkIssue, MarkdownItToken } from "./types.ts";
+import { colors, domParser, type HTMLDocument, type MarkdownIt, overwrite } from "./deps.ts";
 import { ACCEPTABLE_NOT_OK_STATUS, getRetryingFetch, isValidRedirection, transformURL } from "./fetch.ts";
+import type { ExternalLinkIssue, MarkdownItToken } from "./types.ts";
 
 const RETRY_FAILED_FETCH = true;
 const ID_TAGS = ["section", "h1", "h2", "h3", "h4", "h5", "h6", "div", "a"];

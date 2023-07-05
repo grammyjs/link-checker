@@ -1,9 +1,9 @@
 import { doc } from "https://deno.land/x/deno_doc@0.62.0/mod.ts";
 import type { DocNode, JsDoc, JsDocTag, JsDocTagKind, Location } from "https://deno.land/x/deno_doc@0.62.0/types.d.ts";
-import { checkExternalLink, parseLink, parseMarkdownContent } from "./utilities.ts";
-import { ExternalLinkIssue, Issue } from "./types.ts";
 import { colors, MarkdownIt, overwrite, parse } from "./deps.ts";
 import { generateIssueList, prettySummary } from "./issues.ts";
+import type { ExternalLinkIssue, Issue } from "./types.ts";
+import { checkExternalLink, parseLink, parseMarkdownContent } from "./utilities.ts";
 
 const args = parse(Deno.args, { string: ["module"] });
 
@@ -30,7 +30,7 @@ async function main(module: string) {
   const links = await findLinks(module);
 
   for (const root in links) {
-    overwrite(colors.brightMagenta("Fetch"), root);
+    overwrite(colors.brightMagenta("fetch"), root);
     const checked = await checkExternalLink(root);
     if (checked == null) {
       allIssues.push({ type: "no_response", reference: root, loc: links[root] });
