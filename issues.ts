@@ -91,9 +91,7 @@ export function prettySummary(issues: Record<string, Issue[]>) {
   if (totalIssues > 0) {
     return {
       totalIssues,
-      message: `┌${"─".repeat(MAX_LINE_LENGTH - 2)}┐\n` +
-        `│ ${bold("Summary")} ${" ".repeat(MAX_LINE_LENGTH - 12)} │\n` +
-        `├${"─".repeat(MAX_LINE_LENGTH - maxCountLength - 5)}┬${"─".repeat(maxCountLength + 2)}┤\n` +
+      message: `┌${"─".repeat(MAX_LINE_LENGTH - maxCountLength - 5)}┬${"─".repeat(maxCountLength + 2)}┐\n` +
         `${summary}` +
         `├${"─".repeat(MAX_TITLE_LENGTH + 2)}┼${"─".repeat(maxCountLength + 2)}┤\n` +
         `│ ${"Total".padStart(MAX_TITLE_LENGTH, " ")} │ ${totalIssues} │\n` +
