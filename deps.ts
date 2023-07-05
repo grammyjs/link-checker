@@ -10,7 +10,11 @@ import { tty } from "https://deno.land/x/cliffy@v1.0.0-rc.1/ansi/tty.ts";
 
 // deno-lint-ignore no-explicit-any
 export function overwrite(...message: any[]) {
-  tty.eraseLine();
-  console.log(...message);
-  tty.cursorUp();
+  if (Deno.isatty(Deno.stdout.rid)) {
+    tty.eraseLine();
+    console.log(...message);
+    tty.cursorUp();
+  } else {
+    console.log(...message);
+  }
 }
