@@ -1,25 +1,41 @@
-import { anchorPlugin, colors, DOMParser, HTMLDocument, MarkdownIt, overwrite, slugify } from "./deps.ts";
-import { ExternalLinkIssue, MarkdownItToken, ParsedMarkdown } from "./types.ts";
+import { colors, domParser, HTMLDocument, MarkdownIt, overwrite } from "./deps.ts";
+import { ExternalLinkIssue, MarkdownItToken } from "./types.ts";
 import { ACCEPTABLE_NOT_OK_STATUS, getRetryingFetch, isValidRedirection, transformURL } from "./fetch.ts";
 
 const RETRY_FAILED_FETCH = true;
-const MAX_RETRIES = 5;
 const ID_TAGS = ["section", "h1", "h2", "h3", "h4", "h5", "h6", "div", "a"];
+const MAX_RETRIES = 5;
 
-const markdown = MarkdownIt({ html: true, linkify: true }).use(anchorPlugin, { slugify });
-markdown.linkify.set({ fuzzyLink: false });
-const domParser = new DOMParser();
 const fetchWithRetries = getRetryingFetch(RETRY_FAILED_FETCH, MAX_RETRIES);
 const { red, brightMagenta } = colors;
 
-export function parseMarkdownContent(content: string, options: { anchors: boolean }): ParsedMarkdown {
-  const html = markdown.render(content, {});
-  const tokens = markdown.parse(content, {});
+export function parseMarkdownContent(mdit: MarkdownIt, content: string) {
+  const html = mdit.render(content, {});
+  const tokens = mdit.parse(content, {});
   const links = filterLinksFromTokens(tokens);
-  if (!options.anchors) return { links, anchors: new Set() };
-  const document = domParser.parseFromString(html, "text/html")!;
-  const anchors = getAnchors(document, { includeHref: false });
-  return { anchors, links };
+  return { links, html };
+}
+
+export function getAnchors(
+  document: HTMLDocument,
+  opts: { includeHref: boolean } = { includeHref: true },
+): Set<string> {
+  const anchors: string[] = [];
+  for (const tag of ID_TAGS) {
+    const ids = document.getElementsByTagName(tag)
+      .map((element) => element.getAttribute("id"))
+      .filter((id) => id != null && id.trim() !== "") as string[];
+    anchors.push(...ids);
+  }
+  return new Set([
+    ...anchors,
+    ...(opts.includeHref
+      ? document.getElementsByTagName("a")
+        .map((element) => element.getAttribute("href"))
+        .filter((href) => href != null && href.startsWith("#") && href.length > 1)
+        .map((href) => href!.substring(1))
+      : []),
+  ]);
 }
 
 export function parseLink(href: string) {
@@ -46,28 +62,6 @@ function filterLinksFromTokens(tokens: MarkdownItToken[]) {
     }
   }
   return new Set(links);
-}
-
-function getAnchors(
-  document: HTMLDocument,
-  opts: { includeHref: boolean } = { includeHref: true },
-): Set<string> {
-  const anchors: string[] = [];
-  for (const tag of ID_TAGS) {
-    const ids = document.getElementsByTagName(tag)
-      .map((element) => element.getAttribute("id"))
-      .filter((id) => id != null && id.trim() !== "") as string[];
-    anchors.push(...ids);
-  }
-  return new Set([
-    ...anchors,
-    ...(opts.includeHref
-      ? document.getElementsByTagName("a")
-        .map((element) => element.getAttribute("href"))
-        .filter((href) => href != null && href.startsWith("#") && href.length > 1)
-        .map((href) => href!.substring(1))
-      : []),
-  ]);
 }
 
 export async function checkExternalLink(link: string) {

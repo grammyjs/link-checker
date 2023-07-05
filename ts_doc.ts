@@ -2,17 +2,17 @@ import { doc } from "https://deno.land/x/deno_doc@0.62.0/mod.ts";
 import type { DocNode, JsDoc, JsDocTag, JsDocTagKind, Location } from "https://deno.land/x/deno_doc@0.62.0/types.d.ts";
 import { checkExternalLink, parseLink, parseMarkdownContent } from "./utilities.ts";
 import { ExternalLinkIssue, Issue } from "./types.ts";
-import { colors, overwrite, parse } from "./deps.ts";
+import { colors, MarkdownIt, overwrite, parse } from "./deps.ts";
 import { generateIssueList, prettySummary } from "./issues.ts";
 
-const args = parse(Deno.args, {
-  string: ["module"],
-});
+const args = parse(Deno.args, { string: ["module"] });
 
 if (args.module == null) {
   console.error("Specify a module using --module.");
   Deno.exit(1);
 }
+
+const markdown = MarkdownIt();
 
 interface Link {
   location: Location;
@@ -23,62 +23,65 @@ interface Link {
 type HasJSDoc = { jsDoc?: JsDoc; location: Location; name?: string };
 type TSDocLinkIssue = (Issue & { loc: Link }) | (ExternalLinkIssue & { loc: Set<Link> });
 
-const issues: TSDocLinkIssue[] = [];
-const links = await findLinks(args.module);
+await main(args.module);
 
-for (const root in links) {
-  overwrite(colors.brightMagenta("Fetch"), root);
-  const checked = await checkExternalLink(root);
-  if (checked == null) {
-    issues.push({ type: "no_response", reference: root, loc: links[root] });
-    continue;
+async function main(module: string) {
+  const allIssues: TSDocLinkIssue[] = [];
+  const links = await findLinks(module);
+
+  for (const root in links) {
+    overwrite(colors.brightMagenta("Fetch"), root);
+    const checked = await checkExternalLink(root);
+    if (checked == null) {
+      allIssues.push({ type: "no_response", reference: root, loc: links[root] });
+      continue;
+    }
+    allIssues.push(...checked.issues.map((issue) => ({ ...issue, loc: links[root] })));
+    if (checked.anchors == null) {
+      delete links[root];
+      continue;
+    }
+    for (const loc of links[root]) {
+      if (loc.anchor == null || checked.anchors.has(loc.anchor)) continue;
+      allIssues.push({ type: "missing_anchor", anchor: loc.anchor, reference: root, loc });
+    }
   }
 
-  issues.push(...checked.issues.map((issue) => ({ ...issue, loc: links[root] })));
-
-  if (checked.anchors == null) {
-    delete links[root];
-    continue;
+  if (allIssues.length === 0) {
+    console.log(colors.green("No broken links were found in any of the TS Docs!"));
+    Deno.exit(0);
   }
 
-  for (const loc of links[root]) {
-    if (loc.anchor == null || checked.anchors.has(loc.anchor)) continue;
-    issues.push({ type: "missing_anchor", anchor: loc.anchor, reference: root, loc });
-  }
-}
+  console.log(colors.red(`Found ${allIssues.length} issues in TS Docs of the module.\n`));
 
-if (issues.length === 0) {
-  console.log(colors.green("No broken links were found in any of the TS Docs!"));
-  Deno.exit(0);
-} else {
-  console.log(colors.red(`Found ${issues.length} issues in TS Docs of the module.\n`));
-  const mappedIssues = issues.reduce<Record<string, TSDocLinkIssue[]>>((prev, issue) => {
+  const issues = allIssues.reduce<Record<string, TSDocLinkIssue[]>>((prev, issue) => {
     if (issue.loc instanceof Set) {
-      const head_: string[] = [];
+      const locations: string[] = [];
       for (const loc of issue.loc) {
-        head_.push(header(loc));
+        locations.push(prettyLocation(loc));
       }
-      const head = head_.join("\n");
-      prev[head] ??= [];
-      prev[head].push(issue);
+      const location = locations.join("\n");
+      prev[location] ??= [];
+      prev[location].push(issue);
     } else {
-      const head = header(issue.loc);
-      prev[head] ??= [];
-      prev[head].push(issue);
+      const location = prettyLocation(issue.loc);
+      prev[location] ??= [];
+      prev[location].push(issue);
     }
     return prev;
   }, {});
 
-  console.log(prettySummary(mappedIssues).message);
+  console.log(prettySummary(issues).summary);
 
-  for (const header of Object.keys(mappedIssues).sort((a, b) => a.localeCompare(b))) {
-    console.log(header);
-    console.log(generateIssueList(mappedIssues[header]));
+  for (const location of Object.keys(issues).sort((a, b) => a.localeCompare(b))) {
+    console.log(location);
+    console.log(generateIssueList(issues[location]));
   }
+
   Deno.exit(1);
 }
 
-function header({ location, tag, name }: Link) {
+function prettyLocation({ location, tag, name }: Link) {
   return `${colors.bold(location.filename)}:${location.line}:${location.col}` +
     (tag == null ? "" : ` in ${colors.red("@" + tag)}`) +
     (name == null ? "" : ` ${colors.yellow(name)}`);
@@ -109,7 +112,7 @@ async function findLinks(module: string) {
 }
 
 function stripLinksFromJSDoc(doc: string) {
-  return parseMarkdownContent(doc, { anchors: false }).links;
+  return parseMarkdownContent(markdown, doc).links;
 }
 
 function stripLinksFromJSDocTags(tags: JsDocTag[]) {

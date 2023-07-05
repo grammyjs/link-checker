@@ -1,47 +1,55 @@
-import { colors, extname, join, overwrite, parse } from "./deps.ts";
-import { checkExternalLink, parseLink, parseMarkdownContent } from "./utilities.ts";
-import { Issue, MarkdownFile, MissingAnchorIssue } from "./types.ts";
-import { generateIssueList, prettySummary } from "./issues.ts";
+import { default as anchorPlugin } from "https://esm.sh/markdown-it-anchor@8.6.7";
+import { slugify } from "https://esm.sh/@mdit-vue/shared@0.12.0";
+import { extname, join } from "https://deno.land/std@0.192.0/path/mod.ts";
+import { colors, domParser, MarkdownIt, overwrite, parse } from "./deps.ts";
 import { isValidAnchor, transformURL } from "./fetch.ts";
+import { generateIssueList, prettySummary } from "./issues.ts";
+import { Issue, MissingAnchorIssue } from "./types.ts";
+import { checkExternalLink, getAnchors, parseLink, parseMarkdownContent } from "./utilities.ts";
 
-const args = parse(Deno.args, {
-  boolean: ["clean-url"],
-});
+const args = parse(Deno.args, { boolean: ["clean-url"] });
 
 if (args._.length > 1) {
   console.log("Multiple directories were specified. Ignoring everything except the first one.");
 }
 
+const markdown = MarkdownIt({ html: true, linkify: true }).use(anchorPlugin, { slugify });
+markdown.linkify.set({ fuzzyLink: false });
+
 const ALLOW_HTML_EXTENSION = false;
 const INDEX_FILE = "README.md";
 const ROOT_DIRECTORY = (args._[0] ?? ".").toString();
 
-const issues = await readMarkdownFiles(ROOT_DIRECTORY);
+await main(ROOT_DIRECTORY);
 
-const { totalIssues, message } = prettySummary(issues);
+async function main(rootDir: string) {
+  const issues = await readMarkdownFiles(rootDir);
+  const { totalIssues, summary } = prettySummary(issues);
 
-if (totalIssues === 0) {
-  console.log(colors.green("You're good to go! No issues were found!"));
-  Deno.exit(0);
-} else {
-  console.log(colors.red(`Found ${totalIssues} issues! Here is a summary:\n`));
+  if (totalIssues === 0) {
+    console.log(colors.green("You're good to go! No issues were found!"));
+    Deno.exit(0);
+  }
+
+  console.log(colors.red(`Found ${totalIssues} issues in the documentation:\n`));
+  console.log(summary);
+
+  for (const filepath of Object.keys(issues).sort((a, b) => a.localeCompare(b))) {
+    console.log(filepath, `(${issues[filepath].length})`);
+    console.log(generateIssueList(issues[filepath]));
+  }
+
+  Deno.exit(1);
 }
 
-console.log(message);
-
-for (const filepath of Object.keys(issues).sort((a, b) => a.localeCompare(b))) {
-  console.log(filepath, `(${issues[filepath].length})`);
-  console.log(generateIssueList(issues[filepath]));
-}
-
-Deno.exit(1);
-
-async function parseMarkdownFile(filepath: string): Promise<MarkdownFile> {
+async function parseMarkdownFile(filepath: string) {
   const content = await Deno.readTextFile(filepath);
-  const parsed = parseMarkdownContent(content, { anchors: true });
+  const parsed = parseMarkdownContent(markdown, content);
+  const document = domParser.parseFromString(parsed.html, "text/html")!;
+  const allAnchors = getAnchors(document, { includeHref: false });
 
   const issues: Issue[] = [];
-  const anchors = { all: parsed.anchors, used: new Set<string>() };
+  const anchors = { all: allAnchors, used: new Set<string>() };
   const links = { external: new Set<string>(), local: new Set<string>() };
 
   for (const link of parsed.links) {

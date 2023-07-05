@@ -4,23 +4,6 @@ type MarkdownItToken = ReturnType<
   InstanceType<typeof MarkdownIt>["parse"]
 >[number];
 
-interface ParsedMarkdown {
-  anchors: Set<string>;
-  links: Set<string>;
-}
-
-interface MarkdownFile {
-  anchors: {
-    all: Set<string>;
-    used: Set<string>;
-  };
-  links: {
-    external: Set<string>;
-    local: Set<string>;
-  };
-  issues: Issue[];
-}
-
 interface BaseIssue {
   reference: string;
 }
@@ -79,4 +62,4 @@ type Issue =
   | UnknownLinkFormatIssue
   | EmptyAnchorIssue;
 
-export type { ExternalLinkIssue, Issue, MarkdownFile, MarkdownItToken, MissingAnchorIssue, ParsedMarkdown };
+export type { ExternalLinkIssue, Issue, MarkdownFile, MarkdownItToken, MissingAnchorIssue };
