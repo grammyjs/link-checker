@@ -4,6 +4,8 @@ import { findLinks, Link } from "./ts_doc.ts";
 import type { ExternalLinkIssue, Issue } from "./types.ts";
 import { checkExternalLink } from "./utilities.ts";
 
+const { bold, red, yellow, brightMagenta, green } = colors;
+
 type TSDocLinkIssue = (Issue & { loc: Link }) | (ExternalLinkIssue & { loc: Set<Link> });
 const args = parse(Deno.args, { string: ["module"] });
 
@@ -13,16 +15,16 @@ if (args.module == null) {
 }
 
 function prettyLocation({ location, tag, name }: Link) {
-  return `${colors.bold(location.filename)}:${location.line}:${location.col}` +
-    (tag == null ? "" : ` in ${colors.red("@" + tag)}`) +
-    (name == null ? "" : ` ${colors.yellow(name)}`);
+  return `${bold(location.filename)}:${location.line}:${location.col}` +
+    (tag == null ? "" : ` in ${red("@" + tag)}`) +
+    (name == null ? "" : ` ${yellow(name)}`);
 }
 
 const allIssues: TSDocLinkIssue[] = [];
 const links = await findLinks(args.module);
 
 for (const root in links) {
-  overwrite(colors.brightMagenta("fetch"), root);
+  overwrite(brightMagenta("fetch"), root);
   const checked = await checkExternalLink(root);
   if (checked == null) {
     allIssues.push({ type: "no_response", reference: root, loc: links[root] });
@@ -40,11 +42,11 @@ for (const root in links) {
 }
 
 if (allIssues.length === 0) {
-  console.log(colors.green("No broken links were found in any of the TS Docs!"));
+  console.log(green("No broken links were found in any of the TS Docs!"));
   Deno.exit(0);
 }
 
-console.log(colors.red(`Found ${allIssues.length} issues in TS Docs of the module.\n`));
+console.log(red(`Found ${allIssues.length} issues in TS Docs of the module.\n`));
 
 const issues = allIssues.reduce<Record<string, TSDocLinkIssue[]>>((prev, issue) => {
   if (issue.loc instanceof Set) {

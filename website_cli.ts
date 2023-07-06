@@ -3,9 +3,11 @@ import { generateIssueList, prettySummary } from "./issues.ts";
 import { readMarkdownFiles } from "./website.ts";
 
 const args = parse(Deno.args, { boolean: ["clean-url"] });
+
 if (args._.length > 1) {
   console.log("Multiple directories were specified. Ignoring everything except the first one.");
 }
+
 const ROOT_DIRECTORY = (args._[0] ?? ".").toString();
 
 const issues = await readMarkdownFiles(ROOT_DIRECTORY, {

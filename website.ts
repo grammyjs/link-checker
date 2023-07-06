@@ -1,20 +1,26 @@
 import { default as anchorPlugin } from "https://esm.sh/markdown-it-anchor@8.6.7";
-import { slugify } from "https://esm.sh/@mdit-vue/shared@0.12.0";
+import { slugify as slugifyPlugin } from "https://esm.sh/@mdit-vue/shared@0.12.0";
 import { extname, join } from "https://deno.land/std@0.193.0/path/mod.ts";
 import { colors, domParser, MarkdownIt, overwrite } from "./deps.ts";
 import { isValidAnchor, transformURL } from "./fetch.ts";
-import type { Issue, MissingAnchorIssue } from "./types.ts";
+import { Issue, MissingAnchorIssue } from "./types.ts";
 import { checkExternalLink, getAnchors, parseLink, parseMarkdownContent } from "./utilities.ts";
 
-const markdown = MarkdownIt({ html: true, linkify: true }).use(anchorPlugin, { slugify });
-markdown.linkify.set({ fuzzyLink: false });
+const { magenta, blue } = colors;
+
+const mdit = MarkdownIt({
+  html: true,
+  linkify: true,
+}).use(anchorPlugin, { slugify: slugifyPlugin });
+
+mdit.linkify.set({ fuzzyLink: false });
 
 const ALLOW_HTML_EXTENSION = false;
 const INDEX_FILE = "README.md";
 
 async function parseMarkdownFile(filepath: string) {
   const content = await Deno.readTextFile(filepath);
-  const parsed = parseMarkdownContent(markdown, content);
+  const parsed = parseMarkdownContent(mdit, content);
   const document = domParser.parseFromString(parsed.html, "text/html")!;
   const allAnchors = getAnchors(document, { includeHref: false });
 
@@ -111,13 +117,13 @@ export async function readMarkdownFiles(rootDirectory: string, options: { isClea
       const filepath = join(directory, entry.name);
 
       if (entry.isDirectory) {
-        overwrite(colors.magenta("reading directory"), filepath);
+        overwrite(magenta("reading directory"), filepath);
         await readDirectoryFiles(filepath);
         continue;
       }
 
       if (extname(entry.name) != ".md") continue;
-      overwrite(colors.magenta("reading"), filepath);
+      overwrite(magenta("reading"), filepath);
 
       const parsed = await parseMarkdownFile(filepath);
 
@@ -184,7 +190,7 @@ export async function readMarkdownFiles(rootDirectory: string, options: { isClea
           [filepath]: new Set(anchor != null ? [anchor] : []),
         };
 
-        overwrite(colors.blue("fetch"), transformURL(decodeURI(root)));
+        overwrite(blue("fetch"), transformURL(decodeURI(root)));
         const checkedExternalLink = await checkExternalLink(root);
         if (checkedExternalLink == null) {
           delete usedAnchors[root];
