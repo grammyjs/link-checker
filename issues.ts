@@ -1,7 +1,5 @@
-import { colors } from "./deps.ts";
+import { blue, cyan, dim, magenta, red, yellow } from "./deps/std/fmt.ts";
 import { Issue } from "./types.ts";
-
-const { red, cyan, dim, brightBlue, brightMagenta, yellow } = colors;
 
 const LIST_BULLET = "—";
 
@@ -36,19 +34,19 @@ export function makeIssueMessage(issue: Issue) {
         yellow(issue.expected)
       }.`;
     case "linked_file_not_found":
-      return `The linked file ${brightMagenta(issue.filepath)} does not exist.`;
+      return `The linked file ${magenta(issue.filepath)} does not exist.`;
     case "redirected":
       return `The link ${cyan(decodeURI(issue.from))} was redirected to ${cyan(decodeURI(issue.to))}.`;
     case "missing_anchor":
       return `The webpage at ${cyan(decodeURI(issue.reference))} doesn't seem to be have the anchor ${
-        brightBlue(decodeURI(issue.anchor))
+        blue(decodeURI(issue.anchor))
       }`;
     case "empty_anchor":
       return `The page ${cyan(decodeURI(issue.reference))} seems to be linked with an empty anchor.`;
     case "no_response":
       return `There was no response from ${cyan(decodeURI(issue.reference))}.`;
     case "disallow_extension":
-      return `The ${yellow(issue.extension)} extension is disallowed at here: ${brightMagenta(decodeURI(issue.reference))}.`;
+      return `The ${yellow(issue.extension)} extension is disallowed at here: ${magenta(decodeURI(issue.reference))}.`;
     default:
       throw new Error("Invalid type of issue! This shouldn't be happening.");
   }

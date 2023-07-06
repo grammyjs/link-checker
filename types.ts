@@ -1,4 +1,4 @@
-import type { MarkdownIt } from "./deps.ts";
+import type { MarkdownIt } from "./deps/markdown-it/mod.ts";
 
 type MarkdownItToken = ReturnType<
   InstanceType<typeof MarkdownIt>["parse"]

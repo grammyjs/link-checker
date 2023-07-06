@@ -1,8 +1,9 @@
-import { colors, parse } from "./deps.ts";
+import { parseArgs } from "./deps/std/flags.ts";
+import { green, red } from "./deps/std/fmt.ts";
 import { generateIssueList, prettySummary } from "./issues.ts";
 import { readMarkdownFiles } from "./website.ts";
 
-const args = parse(Deno.args, { boolean: ["clean-url"] });
+const args = parseArgs(Deno.args, { boolean: ["clean-url"] });
 
 if (args._.length > 1) {
   console.log("Multiple directories were specified. Ignoring everything except the first one.");
@@ -17,11 +18,11 @@ const issues = await readMarkdownFiles(ROOT_DIRECTORY, {
 const { totalIssues, summary } = prettySummary(issues);
 
 if (totalIssues === 0) {
-  console.log(colors.green("You're good to go! No issues were found!"));
+  console.log(green("You're good to go! No issues were found!"));
   Deno.exit(0);
 }
 
-console.log(colors.red(`Found ${totalIssues} issues in the documentation:\n`));
+console.log(red(`Found ${totalIssues} issues in the documentation:\n`));
 console.log(summary);
 
 for (const filepath of Object.keys(issues).sort((a, b) => a.localeCompare(b))) {

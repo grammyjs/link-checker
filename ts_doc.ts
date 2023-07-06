@@ -1,12 +1,11 @@
-import { MarkdownIt } from "./deps.ts";
+import { doc, DocNode, JsDoc, JsDocTag, JsDocTagKind, Location } from "./deps/deno_doc.ts";
+import { MarkdownIt } from "./deps/markdown-it/mod.ts";
 import { parseLink, parseMarkdownContent } from "./utilities.ts";
-import { doc } from "https://deno.land/x/deno_doc@0.62.0/mod.ts";
-import { DocNode, JsDoc, JsDocTag, JsDocTagKind, Location } from "https://deno.land/x/deno_doc@0.62.0/types.d.ts";
 
 export interface Link {
   location: Location;
   anchor?: string;
-  tag?: string;
+  tag?: JsDocTagKind;
   name?: string;
 }
 
@@ -16,7 +15,7 @@ interface HasJSDoc {
   name?: string;
 }
 
-const mdit = MarkdownIt();
+const mdit = MarkdownIt({ html: true, linkify: true });
 
 export async function findLinks(module: string) {
   const docNodes = await doc(module);

@@ -1,12 +1,15 @@
-import { default as anchorPlugin } from "https://esm.sh/markdown-it-anchor@8.6.7";
-import { slugify as slugifyPlugin } from "https://esm.sh/@mdit-vue/shared@0.12.0";
-import { extname, join } from "https://deno.land/std@0.193.0/path/mod.ts";
-import { colors, domParser, MarkdownIt, overwrite } from "./deps.ts";
+import { overwriteLastLine } from "./deps/common.ts";
+import { DOMParser } from "./deps/deno_dom.ts";
+import { anchorPlugin } from "./deps/markdown-it/anchor.ts";
+import { MarkdownIt } from "./deps/markdown-it/mod.ts";
+import { slugifyPlugin } from "./deps/markdown-it/slugify.ts";
+import { extname, join } from "./deps/std/path.ts";
+import { blue, magenta } from "./deps/std/fmt.ts";
 import { isValidAnchor, transformURL } from "./fetch.ts";
 import { Issue, MissingAnchorIssue } from "./types.ts";
 import { checkExternalLink, getAnchors, parseLink, parseMarkdownContent } from "./utilities.ts";
 
-const { magenta, blue } = colors;
+const domParser = new DOMParser();
 
 const mdit = MarkdownIt({
   html: true,
@@ -117,13 +120,13 @@ export async function readMarkdownFiles(rootDirectory: string, options: { isClea
       const filepath = join(directory, entry.name);
 
       if (entry.isDirectory) {
-        overwrite(magenta("reading directory"), filepath);
+        overwriteLastLine(magenta("reading"), filepath);
         await readDirectoryFiles(filepath);
         continue;
       }
 
       if (extname(entry.name) != ".md") continue;
-      overwrite(magenta("reading"), filepath);
+      overwriteLastLine(magenta("reading"), filepath);
 
       const parsed = await parseMarkdownFile(filepath);
 
@@ -190,7 +193,7 @@ export async function readMarkdownFiles(rootDirectory: string, options: { isClea
           [filepath]: new Set(anchor != null ? [anchor] : []),
         };
 
-        overwrite(blue("fetch"), transformURL(decodeURI(root)));
+        overwriteLastLine(blue("fetch"), transformURL(decodeURI(root)));
         const checkedExternalLink = await checkExternalLink(root);
         if (checkedExternalLink == null) {
           delete usedAnchors[root];

@@ -1,13 +1,14 @@
-import { colors, overwrite, parse } from "./deps.ts";
+import { overwriteLastLine } from "./deps/common.ts";
+import { parseArgs } from "./deps/std/flags.ts";
+import { bold, green, magenta, red, yellow } from "./deps/std/fmt.ts";
 import { generateIssueList, prettySummary } from "./issues.ts";
 import { findLinks, Link } from "./ts_doc.ts";
 import type { ExternalLinkIssue, Issue } from "./types.ts";
 import { checkExternalLink } from "./utilities.ts";
 
-const { bold, red, yellow, brightMagenta, green } = colors;
-
 type TSDocLinkIssue = (Issue & { loc: Link }) | (ExternalLinkIssue & { loc: Set<Link> });
-const args = parse(Deno.args, { string: ["module"] });
+
+const args = parseArgs(Deno.args, { string: ["module"] });
 
 if (args.module == null) {
   console.error("Specify a module using --module.");
@@ -24,7 +25,7 @@ const allIssues: TSDocLinkIssue[] = [];
 const links = await findLinks(args.module);
 
 for (const root in links) {
-  overwrite(brightMagenta("fetch"), root);
+  overwriteLastLine(magenta("fetch"), root);
   const checked = await checkExternalLink(root);
   if (checked == null) {
     allIssues.push({ type: "no_response", reference: root, loc: links[root] });

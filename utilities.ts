@@ -1,4 +1,7 @@
-import { colors, domParser, type HTMLDocument, type MarkdownIt, overwrite } from "./deps.ts";
+import { overwriteLastLine } from "./deps/common.ts";
+import { DOMParser, HTMLDocument } from "./deps/deno_dom.ts";
+import { magenta, red } from "./deps/std/fmt.ts";
+import { MarkdownIt } from "./deps/markdown-it/mod.ts";
 import { ACCEPTABLE_NOT_OK_STATUS, getRetryingFetch, isValidRedirection, transformURL } from "./fetch.ts";
 import type { ExternalLinkIssue, MarkdownItToken } from "./types.ts";
 
@@ -6,8 +9,8 @@ const RETRY_FAILED_FETCH = true;
 const ID_TAGS = ["section", "h1", "h2", "h3", "h4", "h5", "h6", "div", "a"];
 const MAX_RETRIES = 5;
 
+const domParser = new DOMParser();
 const fetchWithRetries = getRetryingFetch(RETRY_FAILED_FETCH, MAX_RETRIES);
-const { red, brightMagenta } = colors;
 
 export function parseMarkdownContent(mdit: MarkdownIt, content: string) {
   const html = mdit.render(content, {});
@@ -72,20 +75,20 @@ export async function checkExternalLink(link: string) {
   const response = await fetchWithRetries(url);
   if (response == null) return;
 
-  if (response.redirected && !isValidRedirection(new URL(link), new URL(response.url))) {
-    issues.push({ type: "redirected", from: link, to: response.url });
+  if (response.redirected && !isValidRedirection(new URL(url), new URL(response.url))) {
+    issues.push({ type: "redirected", from: url, to: response.url });
   }
 
   if (!response.ok && ACCEPTABLE_NOT_OK_STATUS[link] != response.status) {
     issues.push({ type: "not_ok_response", reference: link, status: response.status, statusText: response.statusText });
-    overwrite(red("not OK"), response.status, response.statusText);
+    overwriteLastLine(red("not OK"), response.status, response.statusText);
   }
 
   const contentType = response.headers.get("content-type");
   if (contentType == null) {
-    overwrite(brightMagenta("No Content-Type header was found in the response. Continuing anyway"));
+    overwriteLastLine(magenta("No Content-Type header was found in the response. Continuing anyway"));
   } else if (!contentType.includes("text/html")) {
-    overwrite(brightMagenta(`Content-Type header is ${contentType}; continuing with HTML anyway`));
+    overwriteLastLine(magenta(`Content-Type header is ${contentType}; continuing with HTML anyway`));
   }
 
   try {

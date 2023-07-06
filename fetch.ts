@@ -1,4 +1,4 @@
-import { overwrite } from "./deps.ts";
+import { overwriteLastLine } from "./deps/common.ts";
 
 export const ACCEPTABLE_NOT_OK_STATUS: Record<string, number> = {
   "https://dash.cloudflare.com/login": 403,
@@ -10,7 +10,8 @@ const VALID_REDIRECTIONS: Record<string, string> = {
   "https://localtunnel.me/": "https://theboroer.github.io/localtunnel-www/",
   "https://nodejs.org/": "https://nodejs.org/en",
   "https://api.telegram.org/": "https://core.telegram.org/bots",
-  "https://t.me/name-of-your-bot?start=custom-payload": "https://telegram.org/",
+  "https://telegram.me/name-of-your-bot?start=custom-payload": "https://telegram.org/",
+  "http://telegram.me/addstickers/": "https://telegram.org/",
 };
 
 const FETCH_OPTIONS: Parameters<typeof fetch>[1] = {
@@ -38,7 +39,7 @@ export function getRetryingFetch(
       } catch (err) {
         error = err;
         if (!RETRY_FAILED_FETCH) break;
-        overwrite(`Retrying (${retries + 1})`);
+        overwriteLastLine(`Retrying (${retries + 1})`);
       }
       retries++;
     } while (retries < MAX_RETRIES && response == null);
