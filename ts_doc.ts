@@ -1,8 +1,10 @@
 import { doc, DocNode, JsDoc, JsDocTag, JsDocTagKind, Location } from "./deps/deno_doc.ts";
 import { MarkdownIt } from "./deps/markdown-it/mod.ts";
-import { parseLink, parseMarkdownContent } from "./utilities.ts";
+import { magenta } from "./deps/std/fmt.ts";
+import type { ExternalLinkIssue, Issue } from "./types.ts";
+import { checkExternalLink, parseLink, parseMarkdownContent } from "./utilities.ts";
 
-export interface Link {
+export interface TSDocLink {
   location: Location;
   anchor?: string;
   tag?: JsDocTagKind;
@@ -15,12 +17,39 @@ interface HasJSDoc {
   name?: string;
 }
 
+export type TSDocLinkIssue = (Issue & { loc: TSDocLink }) | (ExternalLinkIssue & { loc: Set<TSDocLink> });
+
 const mdit = MarkdownIt({ html: true, linkify: true });
 
-export async function findLinks(module: string) {
+export async function findIssues(module: string) {
+  const issues: TSDocLinkIssue[] = [];
+  const links = await findLinks(module);
+
+  for (const root in links) {
+    console.log(magenta("fetch"), root);
+    const checked = await checkExternalLink(root);
+    if (checked == null) {
+      issues.push({ type: "no_response", reference: root, loc: links[root] });
+      continue;
+    }
+    issues.push(...checked.issues.map((issue) => ({ ...issue, loc: links[root] })));
+    if (checked.anchors == null) {
+      delete links[root];
+      continue;
+    }
+    for (const loc of links[root]) {
+      if (loc.anchor == null || checked.anchors.has(loc.anchor)) continue;
+      issues.push({ type: "missing_anchor", anchor: loc.anchor, reference: root, loc });
+    }
+  }
+
+  return issues;
+}
+
+async function findLinks(module: string) {
   const docNodes = await doc(module);
   const jsDocNodes = stripSymbolsWithJSDocs(docNodes);
-  const links: Record<string, Set<Link>> = {};
+  const links: Record<string, Set<TSDocLink>> = {};
 
   for (const { jsDoc, location } of jsDocNodes) {
     if (jsDoc == null) continue;

@@ -1,4 +1,3 @@
-import { overwriteLastLine } from "./deps/common.ts";
 import { DOMParser, HTMLDocument } from "./deps/deno_dom.ts";
 import { magenta, red } from "./deps/std/fmt.ts";
 import { MarkdownIt } from "./deps/markdown-it/mod.ts";
@@ -73,22 +72,26 @@ export async function checkExternalLink(link: string) {
   const url = transformURL(link);
 
   const response = await fetchWithRetries(url);
-  if (response == null) return;
+  if (response == null) {
+    issues.push({ type: "no_response", reference: url });
+    return { issues };
+  }
 
   if (response.redirected && !isValidRedirection(new URL(url), new URL(response.url))) {
     issues.push({ type: "redirected", from: url, to: response.url });
   }
 
-  if (!response.ok && ACCEPTABLE_NOT_OK_STATUS[link] != response.status) {
+  if (!response.ok && ACCEPTABLE_NOT_OK_STATUS[link] !== response.status) {
     issues.push({ type: "not_ok_response", reference: link, status: response.status, statusText: response.statusText });
-    overwriteLastLine(red("not OK"), response.status, response.statusText);
+    console.log(red("not OK"), response.status, response.statusText);
+    return { issues };
   }
 
   const contentType = response.headers.get("content-type");
   if (contentType == null) {
-    overwriteLastLine(magenta("No Content-Type header was found in the response. Continuing anyway"));
+    console.log(magenta("No Content-Type header was found in the response. Continuing anyway"));
   } else if (!contentType.includes("text/html")) {
-    overwriteLastLine(magenta(`Content-Type header is ${contentType}; continuing with HTML anyway`));
+    console.log(magenta(`Content-Type header is ${contentType}; continuing with HTML anyway`));
   }
 
   try {

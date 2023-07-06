@@ -1,4 +1,3 @@
-import { overwriteLastLine } from "./deps/common.ts";
 import { DOMParser } from "./deps/deno_dom.ts";
 import { anchorPlugin } from "./deps/markdown-it/anchor.ts";
 import { MarkdownIt } from "./deps/markdown-it/mod.ts";
@@ -120,13 +119,13 @@ export async function readMarkdownFiles(rootDirectory: string, options: { isClea
       const filepath = join(directory, entry.name);
 
       if (entry.isDirectory) {
-        overwriteLastLine(magenta("reading"), filepath);
+        console.log(magenta("reading"), filepath);
         await readDirectoryFiles(filepath);
         continue;
       }
 
       if (extname(entry.name) != ".md") continue;
-      overwriteLastLine(magenta("reading"), filepath);
+      console.log(magenta("reading"), filepath);
 
       const parsed = await parseMarkdownFile(filepath);
 
@@ -193,7 +192,7 @@ export async function readMarkdownFiles(rootDirectory: string, options: { isClea
           [filepath]: new Set(anchor != null ? [anchor] : []),
         };
 
-        overwriteLastLine(blue("fetch"), transformURL(decodeURI(root)));
+        console.log(blue("fetch"), transformURL(decodeURI(root)));
         const checkedExternalLink = await checkExternalLink(root);
         if (checkedExternalLink == null) {
           delete usedAnchors[root];

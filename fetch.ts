@@ -1,4 +1,4 @@
-import { overwriteLastLine } from "./deps/common.ts";
+import { ExternalLinkIssue } from "./types.ts";
 
 export const ACCEPTABLE_NOT_OK_STATUS: Record<string, number> = {
   "https://dash.cloudflare.com/login": 403,
@@ -39,7 +39,7 @@ export function getRetryingFetch(
       } catch (err) {
         error = err;
         if (!RETRY_FAILED_FETCH) break;
-        overwriteLastLine(`Retrying (${retries + 1})`);
+        console.log(`Retrying (${retries + 1})`);
       }
       retries++;
     } while (retries < MAX_RETRIES && response == null);
@@ -124,4 +124,22 @@ export function isValidAnchor(all: Set<string>, url: string, anchor: string) {
     return all.has(anchor + "_1") || all.has(decodedAnchor + "_1");
   }
   return false;
+}
+
+export async function getREADME(link: string, path = "", branch?: string) {
+  const pathSegments = new URL(link).pathname.split("/");
+  const repo = pathSegments.slice(1, 3);
+
+
+  const issues: ExternalLinkIssue[] = [];
+
+  const url = new URL(`/repos/${repo}/readme/${path}`, "https://api.github.com");
+  const headers = new Headers({ "Accept": "application/vnd.github.html" });
+  if (branch != null) url.search = new URLSearchParams({ "ref": branch }).toString();
+  const response = await fetch(url, { headers });
+  if (!response.ok) {
+    issues.push({ type: "not_ok_response", reference: link, status: response.status, statusText: response.statusText });
+    return { issues };
+  }
+  return await response.text();
 }

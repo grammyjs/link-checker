@@ -62,4 +62,4 @@ type Issue =
   | UnknownLinkFormatIssue
   | EmptyAnchorIssue;
 
-export type { ExternalLinkIssue, Issue, MarkdownFile, MarkdownItToken, MissingAnchorIssue };
+export type { ExternalLinkIssue, Issue, MarkdownItToken, MissingAnchorIssue };
