@@ -165,8 +165,15 @@ async function resolveLocalFileLink(
       root += INDEX_FILE;
     }
   }
-  const relativePath = join(directory, root);
+
   try {
+    // Matches two or more consecutive forward slashes
+    const regex = /\/{2,}/;
+    if (regex.test(root)) {
+      throw new Deno.errors.NotFound();
+    }
+
+    const relativePath = join(directory, root);
     await Deno.lstat(relativePath);
     if (anchor == null) return;
     usedAnchors[relativePath] ??= {};
