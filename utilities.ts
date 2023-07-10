@@ -52,13 +52,14 @@ export function transformURL(url: string) {
      * into this:
      * ["https://github.com/", "grammyjs/website/", "tree/", "main/site/docs/, "advanced", "foo"]
      */
-    const re =
-      /^.*\.com\/([^\/]+\/[^\/]+\/)(?:tree\/|blob\/)(.*\/)([^\/#]+)#?(.*)?$/;
+    const re = /^.*\.com\/([^\/]+\/[^\/]+\/)(?:tree\/)(.*\/)([^\/#]+)#?(.*)?$/;
     const match = url.match(re);
 
-    // If url does not contain "tree" or "blob" (means not nested directory), then parse them as the regular external link.
     if (match) {
       let [, repo, path, fileName, anchor] = match;
+
+      if (anchor === undefined) return url;
+
       if (!fileName.endsWith(".md")) {
         fileName += "/README.md";
       }
