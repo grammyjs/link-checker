@@ -224,19 +224,29 @@ for (const file in links) { // goes through each local file...
       log(red("NOT OK"), `${response.status} ${response.statusText}`);
     }
 
-    // For getting list of actual anchors we need to parse the docuement.
-    // And for parsing the document we need to make sure its a HTML document.
+    // For getting list of actual anchors we need to parse the document.
+    // And for parsing the document we need to make sure its either a HTML document or Markdown document.
     const contentType = response.headers.get("content-type");
     if (!contentType) {
       warn(`No content-type header, continuing anyway`);
-    } else if (!contentType.includes("text/html")) {
+    } else if (
+      !contentType.includes("text/html") && !contentType.includes("text/plain")
+    ) {
       warn(`Content-type is: ${contentType}, but let's just go with html`);
     }
 
     let document: HTMLDocument;
     try {
       const content = await response.text();
-      const doc = domParser.parseFromString(content, "text/html");
+      let doc: HTMLDocument | null;
+
+      if (contentType?.includes("text/plain")) {
+        const html = markdownIt.render(content, {});
+        doc = domParser.parseFromString(html, "text/html");
+      } else {
+        doc = domParser.parseFromString(content, "text/html");
+      }
+
       if (doc == null) throw new Error("no document, skipping");
       document = doc;
     } catch (err) {
