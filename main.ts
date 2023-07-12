@@ -167,7 +167,6 @@ async function resolveLocalFileLink(
   }
 
   try {
-    // Matches two or more consecutive forward slashes
     if (root.includes("//")) {
       throw new Deno.errors.NotFound();
     }
