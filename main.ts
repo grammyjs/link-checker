@@ -169,7 +169,7 @@ async function resolveLocalFileLink(
   try {
     // Matches two or more consecutive forward slashes
     const regex = /\/{2,}/;
-    if (regex.test(root)) {
+    if (root.includes("//")) {
       throw new Deno.errors.NotFound();
     }
 
