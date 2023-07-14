@@ -48,7 +48,6 @@ export async function readMarkdownFiles(
       const filepath = join(directory, entry.name);
 
       if (entry.isDirectory) {
-        console.log(magenta("reading"), filepath);
         await readDirectoryFiles(filepath);
         continue;
       }
