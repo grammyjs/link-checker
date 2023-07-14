@@ -42,6 +42,30 @@ export function transformURL(url: string) {
   if (url.includes("://t.me/")) { // Some ISPs have blocked t.me
     warn("Changing t.me to telegram.me for convenience");
     url = url.replace("://t.me/", "://telegram.me/");
+  } else if (url.includes("://github.com/")) {
+    /**
+     * Github DOM for nested directory is not rendered correctly without javascript enabled.
+     * Therefore we download the file and parse them as the markdown file.
+     *
+     * Regex below will split this url:
+     * https://github.com/grammyjs/website/tree/main/site/docs/advanced#foo
+     * into this:
+     * ["https://github.com/", "grammyjs/website/", "tree/", "main/site/docs/, "advanced", "foo"]
+     */
+    const re = /^.*\.com\/([^\/]+\/[^\/]+\/)(?:tree\/)(.*\/)([^\/#]+)#?(.*)?$/;
+    const match = url.match(re);
+
+    if (match) {
+      let [, repo, path, fileName, anchor] = match;
+
+      if (anchor === undefined) return url;
+
+      if (!fileName.endsWith(".md")) {
+        fileName += "/README.md";
+      }
+      url =
+        `https://raw.githubusercontent.com/${repo}${path}${fileName}#${anchor}`;
+    }
   }
   return url;
 }
