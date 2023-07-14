@@ -97,7 +97,7 @@ export function prettySummary(issues: Record<string, Issue[]>) {
         `└${"─".repeat(MAX_TITLE_LENGTH + 2)}┴${"─".repeat(maxCountLength + 2)}┘`,
     };
   } else {
-    return { totalIssues, message: "" };
+    return { totalIssues, summary: "" };
   }
 }
 
