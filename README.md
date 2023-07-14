@@ -9,7 +9,7 @@ To check for broken links in [grammY's documentaion source](https://github.com/g
 go to the `site/docs/` directory and run the following:
 
 ```sh
-$ deno run --allow-read --allow-net \
+$ deno run --allow-env --allow-net --allow-read \
   https://raw.githubusercontent.com/grammyjs/link-checker/main/website_cli.ts [root directory = '.']
 ```
 
@@ -28,7 +28,7 @@ code and some contains external links. Currently only the documentation of the e
 broken links in those files:
 
 ```sh
-$ deno run --allow-read --allow-net \
+$ deno run --allow-env --allow-net --allow-read \
   https://raw.githubusercontent.com/grammyjs/link-checker/main/ts_doc_cli.ts --module <MODULE>
 ```
 
