@@ -165,8 +165,13 @@ async function resolveLocalFileLink(
       root += INDEX_FILE;
     }
   }
-  const relativePath = join(directory, root);
+
   try {
+    if (root.includes("//")) {
+      throw new Deno.errors.NotFound();
+    }
+
+    const relativePath = join(directory, root);
     await Deno.lstat(relativePath);
     if (anchor == null) return;
     usedAnchors[relativePath] ??= {};
