@@ -3,7 +3,7 @@
 A tool for going through grammY documentation source and other repositories' JSDocs, and reporting broken links and missing
 anchors.
 
-#### Checking Documentation
+## Checking Documentation
 
 To check for broken links in [grammY's documentation source](https://github.com/grammyjs/website), clone the website repository
 and go to the `site/docs/` directory and run the following:
@@ -23,21 +23,20 @@ Supported arguments:
 - `--allow-ext-html`: Defaults to `false`. Not needed if `--clean-url` is specified. Allows `.html` extension to be used to
   reference other local files.
 
-> ##### GitHub files
+> ### GitHub files
 >
-> **TLDR;** Set the environment variable `GITHUB_TOKEN` if documents contains a lot of links to Github markup (README, for
-> example) files. A fine-grained token with the default permissions will do.
+> **TLDR;** Set the environment variable `GITHUB_TOKEN` if documents contains a lot of links to GitHub markup (README, for
+> example) files. A fine-grained token with the default set of permissions will do.
 >
-> When you run the CLIs as mentioned you should get a gentle reminder about an environment variable: `GITHUB_TOKEN`. Here's why
-> this (_optionally_) needs a GitHub token: There might be links of the format
-> <samp>https://github.com/OWNER/REPO/tree/dir#anchor</samp> in the documentation. These types of links are assumed to be pointing
-> to a Github repository's directory README, because there is an anchor. Also, if you change the 'tree' to 'blob' and the 'dir' to
-> a renderable file supported by https://github.com/github/markups, you'll get a link that is supposed to be pointing to a markup
-> file. When normally fetched, their responses does not contain the actual content of that file, since it is lazily loaded. It is
-> not possible to check if such an anchor exists without the content. So, we fetch the content using the GitHub Content REST API.
-> And that is why we need a GitHub access token. If you only have a few such links, then you won't be needing the token.
+> When you run the CLIs as mentioned you should get a gentle reminder about an environment variable: `GITHUB_TOKEN`. Here's why:
+> There might be links like https://github.com/OWNER/REPO/tree/dir#anchor or https://github.com/OWNER/REPO/blob/file.rst#anchor in
+> the documentation. These types of links are assumed to be pointing to a GitHub repository's directory README or a
+> [supported markup](https://github.com/github/markup/blob/master/README.md#markups) file, because there is an anchor. When
+> normally fetched, their responses does not contain the actual content of that file, because the content is lazily loaded. So for
+> checking if the anchor is present, we fetch the content using the GitHub Content REST API. And that is why we need a GitHub
+> access token. If you only have a few such links, then you most likely don't need the token.
 
-#### Checking JSDocs
+## Checking JSDocs
 
 Only the website repository has a special structure. All the other repositories that under grammY organization has JSDocs in their
 code and some contains external links. Currently only the documentation of the exported members are checked. So, for checking
