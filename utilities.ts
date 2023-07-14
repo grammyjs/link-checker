@@ -1,15 +1,15 @@
 import { DOMParser, HTMLDocument } from "./deps/deno_dom.ts";
 import { magenta, red } from "./deps/std/fmt.ts";
 import { MarkdownIt } from "./deps/markdown-it/mod.ts";
+
 import { ACCEPTABLE_NOT_OK_STATUS, getRetryingFetch, isValidRedirection, transformURL } from "./fetch.ts";
 import type { ExternalLinkIssue, MarkdownItToken } from "./types.ts";
 
 const RETRY_FAILED_FETCH = true;
-const ID_TAGS = ["section", "h1", "h2", "h3", "h4", "h5", "h6", "div", "a"];
 const MAX_RETRIES = 5;
+const ID_TAGS = ["section", "h1", "h2", "h3", "h4", "h5", "h6", "div", "a"];
 
-const domParser = new DOMParser();
-const fetchWithRetries = getRetryingFetch(RETRY_FAILED_FETCH, MAX_RETRIES);
+export const fetchWithRetries = getRetryingFetch(RETRY_FAILED_FETCH, MAX_RETRIES);
 
 export function parseMarkdownContent(mdit: MarkdownIt, content: string) {
   const html = mdit.render(content, {});
@@ -66,23 +66,23 @@ function filterLinksFromTokens(tokens: MarkdownItToken[]) {
   return new Set(links);
 }
 
-export async function checkExternalLink(link: string) {
+export async function checkExternalUrl(url: string, utils: { domParser: DOMParser }) {
   const issues: ExternalLinkIssue[] = [];
 
-  const url = transformURL(link);
+  const transformed = transformURL(url);
 
-  const response = await fetchWithRetries(url);
+  const response = await fetchWithRetries(transformed);
   if (response == null) {
-    issues.push({ type: "no_response", reference: url });
+    issues.push({ type: "no_response", reference: transformed });
     return { issues };
   }
 
-  if (response.redirected && !isValidRedirection(new URL(url), new URL(response.url))) {
-    issues.push({ type: "redirected", from: url, to: response.url });
+  if (response.redirected && !isValidRedirection(new URL(transformed), new URL(response.url))) {
+    issues.push({ type: "redirected", from: transformed, to: response.url });
   }
 
-  if (!response.ok && ACCEPTABLE_NOT_OK_STATUS[link] !== response.status) {
-    issues.push({ type: "not_ok_response", reference: link, status: response.status, statusText: response.statusText });
+  if (!response.ok && ACCEPTABLE_NOT_OK_STATUS[url] !== response.status) {
+    issues.push({ type: "not_ok_response", reference: url, status: response.status, statusText: response.statusText });
     console.log(red("not OK"), response.status, response.statusText);
     return { issues };
   }
@@ -96,12 +96,12 @@ export async function checkExternalLink(link: string) {
 
   try {
     const content = await response.text();
-    const document = domParser.parseFromString(content, "text/html");
+    const document = utils.domParser.parseFromString(content, "text/html");
     if (document == null) throw new Error("Failed to parse the webpage: skipping");
     const anchors = getAnchors(document, { includeHref: true });
     return { issues, anchors, document };
   } catch (error) {
-    issues.push({ type: "empty_dom", reference: link });
+    issues.push({ type: "empty_dom", reference: url });
     console.error(red("error:"), error);
     return { issues };
   }

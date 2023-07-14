@@ -1,5 +1,3 @@
-import { ExternalLinkIssue } from "./types.ts";
-
 export const ACCEPTABLE_NOT_OK_STATUS: Record<string, number> = {
   "https://dash.cloudflare.com/login": 403,
   "https://dash.cloudflare.com/?account=workers": 403,
@@ -14,7 +12,9 @@ const VALID_REDIRECTIONS: Record<string, string> = {
   "http://telegram.me/addstickers/": "https://telegram.org/",
 };
 
-const FETCH_OPTIONS: Parameters<typeof fetch>[1] = {
+type FetchOptions = Parameters<typeof fetch>[1];
+
+const FETCH_OPTIONS: FetchOptions = {
   method: "GET",
   headers: {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/113.0",
@@ -29,13 +29,13 @@ export function getRetryingFetch(
   RETRY_FAILED_FETCH: boolean,
   MAX_RETRIES: number,
 ) {
-  return async function (url: string) {
+  return async function (url: string, options = FETCH_OPTIONS) {
     let retries = 0;
     let response: Response | undefined;
     let error: unknown;
     do {
       try {
-        response = await fetch(url, FETCH_OPTIONS);
+        response = await fetch(url, options);
       } catch (err) {
         error = err;
         if (!RETRY_FAILED_FETCH) break;
@@ -124,22 +124,4 @@ export function isValidAnchor(all: Set<string>, url: string, anchor: string) {
     return all.has(anchor + "_1") || all.has(decodedAnchor + "_1");
   }
   return false;
-}
-
-export async function getREADME(link: string, path = "", branch?: string) {
-  const pathSegments = new URL(link).pathname.split("/");
-  const repo = pathSegments.slice(1, 3);
-
-
-  const issues: ExternalLinkIssue[] = [];
-
-  const url = new URL(`/repos/${repo}/readme/${path}`, "https://api.github.com");
-  const headers = new Headers({ "Accept": "application/vnd.github.html" });
-  if (branch != null) url.search = new URLSearchParams({ "ref": branch }).toString();
-  const response = await fetch(url, { headers });
-  if (!response.ok) {
-    issues.push({ type: "not_ok_response", reference: link, status: response.status, statusText: response.statusText });
-    return { issues };
-  }
-  return await response.text();
 }

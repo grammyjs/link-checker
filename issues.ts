@@ -1,4 +1,5 @@
 import { blue, cyan, dim, magenta, red, yellow } from "./deps/std/fmt.ts";
+
 import { Issue } from "./types.ts";
 
 const LIST_BULLET = "—";
@@ -84,12 +85,12 @@ export function prettySummary(issues: Record<string, Issue[]>) {
     summary += `│ ${title} │ ${count} │\n`;
   }
 
-  const MAX_LINE_LENGTH = summary.split("\n").reduce((p, c) => c.length > p ? c.length : p, 0);
+  const maxLineLength = summary.split("\n").reduce((p, c) => c.length > p ? c.length : p, 0);
 
   if (totalIssues > 0) {
     return {
       totalIssues,
-      summary: `┌${"─".repeat(MAX_LINE_LENGTH - maxCountLength - 5)}┬${"─".repeat(maxCountLength + 2)}┐\n` +
+      summary: `┌${"─".repeat(maxLineLength - maxCountLength - 5)}┬${"─".repeat(maxCountLength + 2)}┐\n` +
         `${summary}` +
         `├${"─".repeat(MAX_TITLE_LENGTH + 2)}┼${"─".repeat(maxCountLength + 2)}┤\n` +
         `│ ${"Total".padStart(MAX_TITLE_LENGTH, " ")} │ ${totalIssues} │\n` +

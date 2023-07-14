@@ -1,8 +1,12 @@
 import { doc, DocNode, JsDoc, JsDocTag, JsDocTagKind, Location } from "./deps/deno_doc.ts";
+import { DOMParser } from "./deps/deno_dom.ts";
 import { MarkdownIt } from "./deps/markdown-it/mod.ts";
-import { magenta } from "./deps/std/fmt.ts";
-import type { ExternalLinkIssue, Issue } from "./types.ts";
-import { checkExternalLink, parseLink, parseMarkdownContent } from "./utilities.ts";
+import { blue } from "./deps/std/fmt.ts";
+
+import { transformURL } from "./fetch.ts";
+import { findGroupedLinksIssues, GroupedLinksResolved, groupLinks, resolveGroupedLinks } from "./group_links.ts";
+import { ExternalLinkIssue, Issue } from "./types.ts";
+import { checkExternalUrl, parseLink, parseMarkdownContent } from "./utilities.ts";
 
 export interface TSDocLink {
   location: Location;
@@ -11,35 +15,58 @@ export interface TSDocLink {
   name?: string;
 }
 
-interface HasJSDoc {
+interface WithJSDoc {
   jsDoc?: JsDoc;
   location: Location;
   name?: string;
 }
 
-export type TSDocLinkIssue = (Issue & { loc: TSDocLink }) | (ExternalLinkIssue & { loc: Set<TSDocLink> });
+export type TSDocLinkIssue =
+  | (Issue & { loc: TSDocLink })
+  | (ExternalLinkIssue & { loc: Set<TSDocLink> });
 
+const domParser = new DOMParser();
 const mdit = MarkdownIt({ html: true, linkify: true });
 
 export async function findIssues(module: string) {
   const issues: TSDocLinkIssue[] = [];
-  const links = await findLinks(module);
+  const linkLocations = await findLinks(module);
+  const allAnchors: Record<string, Set<string>> = {};
+  const resolvedGroupableLinks: GroupedLinksResolved = {
+    githubRenderableFiles: {},
+  };
 
-  for (const root in links) {
-    console.log(magenta("fetch"), root);
-    const checked = await checkExternalLink(root);
-    if (checked == null) {
-      issues.push({ type: "no_response", reference: root, loc: links[root] });
+  for (const href in linkLocations) {
+    const { root, anchor } = parseLink(href);
+    if (allAnchors[root] != null) {
+      if (anchor != null && !allAnchors[root].has(anchor)) {
+        issues.push({ type: "missing_anchor", anchor, loc: linkLocations[href], reference: root });
+      }
       continue;
     }
-    issues.push(...checked.issues.map((issue) => ({ ...issue, loc: links[root] })));
-    if (checked.anchors == null) {
-      delete links[root];
-      continue;
+
+    const groupedLink = groupLinks(new Set([href])); // single!
+    await resolveGroupedLinks(groupedLink, resolvedGroupableLinks, { domParser });
+    for (const issue of findGroupedLinksIssues(groupedLink, resolvedGroupableLinks)) {
+      issues.push({ ...issue, loc: linkLocations[href] });
     }
-    for (const loc of links[root]) {
-      if (loc.anchor == null || checked.anchors.has(loc.anchor)) continue;
-      issues.push({ type: "missing_anchor", anchor: loc.anchor, reference: root, loc });
+
+    if (groupedLink.other.size === 0) continue; // it was a groupable special link.
+    console.log(blue("fetch"), decodeURIComponent(transformURL(root)));
+    const checkedLink = await checkExternalUrl(root, { domParser });
+
+    if (checkedLink.issues.length > 0) {
+      issues.push(...checkedLink.issues.map((issue) => {
+        return { ...issue, loc: linkLocations[href] };
+      }));
+    }
+
+    allAnchors[root] = checkedLink.anchors ?? new Set();
+
+    if (anchor != null && !allAnchors[root].has(anchor)) {
+      for (const location of linkLocations[href]) {
+        issues.push({ type: "missing_anchor", loc: location, reference: root, anchor });
+      }
     }
   }
 
@@ -49,23 +76,21 @@ export async function findIssues(module: string) {
 async function findLinks(module: string) {
   const docNodes = await doc(module);
   const jsDocNodes = stripSymbolsWithJSDocs(docNodes);
-  const links: Record<string, Set<TSDocLink>> = {};
+  const linkLocations: Record<string, Set<TSDocLink>> = {};
 
   for (const { jsDoc, location } of jsDocNodes) {
     if (jsDoc == null) continue;
     for (const href of stripLinksFromJSDoc(jsDoc.doc ?? "")) {
-      const parsed = parseLink(href);
-      links[parsed.root] ??= new Set();
-      links[parsed.root].add({ location, anchor: parsed.anchor });
+      linkLocations[href] ??= new Set();
+      linkLocations[href].add({ location });
     }
-    for (const { kind, href, name } of stripLinksFromJSDocTags(jsDoc.tags ?? [])) {
-      const parsed = parseLink(href);
-      links[parsed.root] ??= new Set();
-      links[parsed.root].add({ location, anchor: parsed.anchor, tag: kind, name });
+    for (const { tag, href, name } of stripLinksFromJSDocTags(jsDoc.tags ?? [])) {
+      linkLocations[href] ??= new Set();
+      linkLocations[href].add({ location, tag, name });
     }
   }
 
-  return links;
+  return linkLocations;
 }
 
 function stripLinksFromJSDoc(doc: string) {
@@ -73,7 +98,7 @@ function stripLinksFromJSDoc(doc: string) {
 }
 
 function stripLinksFromJSDocTags(tags: JsDocTag[]) {
-  const links = new Set<{ kind: JsDocTagKind; href: string; name?: string }>();
+  const links = new Set<{ tag: JsDocTagKind; href: string; name?: string }>();
   for (const tag of tags) {
     switch (tag.kind) {
       case "category":
@@ -102,7 +127,7 @@ function stripLinksFromJSDocTags(tags: JsDocTag[]) {
           } else if (tag.kind === "enum" || tag.kind === "extends" || tag.kind === "this" || tag.kind === "type") {
             name = tag.type;
           }
-          links.add({ kind: tag.kind, href, name });
+          links.add({ tag: tag.kind, href, name });
         }
       }
     }
@@ -111,7 +136,7 @@ function stripLinksFromJSDocTags(tags: JsDocTag[]) {
 }
 
 function stripSymbolsWithJSDocs(docNodes: DocNode[]) {
-  let jsDocNodes: HasJSDoc[] = [];
+  let jsDocNodes: WithJSDoc[] = [];
 
   for (const node of docNodes) {
     if (node.kind === "import") continue;

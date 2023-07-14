@@ -51,6 +51,7 @@ type ExternalLinkIssue =
   | RedirectedIssue
   | NotOKResponseIssue
   | NoResponseIssue
+  | MissingAnchorIssue
   | EmptyDOMIssue;
 
 type Issue =
@@ -58,7 +59,6 @@ type Issue =
   | DisallowExtensionIssue
   | WrongExtensionIssue
   | LinkedFileNotFoundIssue
-  | MissingAnchorIssue
   | UnknownLinkFormatIssue
   | EmptyAnchorIssue;
 

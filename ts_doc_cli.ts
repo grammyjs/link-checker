@@ -1,52 +1,57 @@
+import { error } from "./deps/common.ts";
 import { parseArgs } from "./deps/std/flags.ts";
 import { bold, green, red, yellow } from "./deps/std/fmt.ts";
+
 import { generateIssueList, prettySummary } from "./issues.ts";
 import { findIssues, TSDocLink, TSDocLinkIssue } from "./ts_doc.ts";
 
-const args = parseArgs(Deno.args, { string: ["module"] });
+const args = parseArgs(Deno.args, {
+  string: ["module"],
+  unknown: (arg) => {
+    error(`Unknown argument ${arg}.`);
+    Deno.exit(1);
+  },
+});
 
 if (args.module == null) {
-  console.error("Specify a module using --module.");
+  error("Specify a module using --module.");
   Deno.exit(1);
+}
+
+const isAbsoluteUrl = URL.canParse(args.module);
+
+if (!isAbsoluteUrl && args.module[0] !== "/" && !args.module.startsWith("./") && !args.module.startsWith("../")) {
+  error("Module path must be a relative path or an absolute local or remote URL.");
+  Deno.exit(1);
+}
+
+const issues = await findIssues(
+  URL.canParse(args.module) ? args.module : import.meta.resolve(args.module),
+);
+
+if (issues.length === 0) {
+  console.log(green("No broken links were found in any of the TSDocs!"));
+  Deno.exit(0);
+}
+
+console.log("\n" + red(`Found ${issues.length} issues in TSDocs of the module.\n`));
+
+const mappedIssues = issues.reduce<Record<string, TSDocLinkIssue[]>>((prev, issue) => {
+  const location = issue.loc instanceof Set ? Array.from(issue.loc).map(prettyLocation).join("\n") : prettyLocation(issue.loc);
+  prev[location] ??= [];
+  prev[location].push(issue);
+  return prev;
+}, {});
+
+console.log(prettySummary(mappedIssues).summary);
+
+for (const location of Object.keys(mappedIssues).sort((a, b) => a.localeCompare(b))) {
+  console.log(`\n${location}`);
+  console.log(generateIssueList(mappedIssues[location]));
 }
 
 function prettyLocation({ location, tag, name }: TSDocLink) {
   return `${bold(location.filename)}:${location.line}:${location.col}` +
     (tag == null ? "" : ` in ${red("@" + tag)}`) +
     (name == null ? "" : ` ${yellow(name)}`);
-}
-
-const allIssues = await findIssues(args.module);
-
-if (allIssues.length === 0) {
-  console.log(green("No broken links were found in any of the TS Docs!"));
-  Deno.exit(0);
-}
-
-console.log(red(`Found ${allIssues.length} issues in TS Docs of the module.\n`));
-
-const issues = allIssues.reduce<
-  Record<string, TSDocLinkIssue[]>
->((prev, issue) => {
-  if (issue.loc instanceof Set) {
-    const locations: string[] = [];
-    for (const loc of issue.loc) {
-      locations.push(prettyLocation(loc));
-    }
-    const location = locations.join("\n");
-    prev[location] ??= [];
-    prev[location].push(issue);
-  } else {
-    const location = prettyLocation(issue.loc);
-    prev[location] ??= [];
-    prev[location].push(issue);
-  }
-  return prev;
-}, {});
-
-console.log(prettySummary(issues).summary);
-
-for (const location of Object.keys(issues).sort((a, b) => a.localeCompare(b))) {
-  console.log(`\n${location}`);
-  console.log(generateIssueList(issues[location]));
 }
