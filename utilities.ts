@@ -68,10 +68,9 @@ function filterLinksFromTokens(tokens: MarkdownItToken[]) {
 
 export async function checkExternalUrl(url: string, utils: { domParser: DOMParser }) {
   const issues: ExternalLinkIssue[] = [];
-
   const transformed = transformURL(url);
-
   const response = await fetchWithRetries(transformed);
+
   if (response == null) {
     issues.push({ type: "no_response", reference: transformed });
     return { issues };
