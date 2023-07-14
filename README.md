@@ -1,11 +1,11 @@
 # Link Checker
 
-A tool for going through grammY documentation source and other repositories' JSDocs, and reporting broken links and missing
+A tool for going through grammY documentation source and other repositories’ JSDocs, and reporting broken links and missing
 anchors.
 
 ## Checking Documentation
 
-To check for broken links in [grammY's documentation source](https://github.com/grammyjs/website), clone the website repository
+To check for broken links in the [grammY documentation](https://github.com/grammyjs/website), clone the website repository
 and go to the `site/docs/` directory and run the following:
 
 ```sh
@@ -17,8 +17,8 @@ $ deno run --allow-env --allow-net --allow-read \
 
 Supported arguments:
 
-- `--clean-url`: Defaults to `false`. Vitepress's clean URL config option makes sure that the references to other local files
-  doesn't end with an extension. Specify this option if the configuration used in the website repository has this option enabled.
+- `--clean-url`: Defaults to `false`. VitePress’ clean URL config option makes sure that the references to other local files
+  doesn’t end with an extension. Specify this option if the configuration used in the website repository has this option enabled.
 - `--index-file`: Defaults to `README.md`. Index file of a directory.
 - `--allow-ext-html`: Defaults to `false`. Not needed if `--clean-url` is specified. Allows `.html` extension to be used to
   reference other local files.
@@ -28,13 +28,13 @@ Supported arguments:
 **TLDR;** Set the environment variable `GITHUB_TOKEN` if documents contains a lot of links to GitHub markup (README, for example)
 files. A fine-grained token with the default set of permissions will do.
 
-When you run the CLIs as mentioned you should get a gentle reminder about an environment variable: `GITHUB_TOKEN`. Here's why:
+When you run the CLIs as mentioned you should get a gentle reminder about an environment variable: `GITHUB_TOKEN`. Here’s why:
 There might be links like https://github.com/OWNER/REPO/tree/dir#anchor or https://github.com/OWNER/REPO/blob/file.rst#anchor in
-the documentation. These types of links are assumed to be pointing to a GitHub repository's directory README or a
+the documentation. These types of links are assumed to be pointing to a GitHub repository’s directory README or a
 [supported markup](https://github.com/github/markup/blob/master/README.md#markups) file, because there is an anchor. When normally
 fetched, their responses does not contain the actual content of that file, because the content is lazily loaded. So for checking
 if the anchor is present, we fetch the content using the GitHub Content REST API. And that is why we need a GitHub access token.
-If you only have a few such links, then you most likely don't need the token.
+If you only have a few such links, then you most likely don’t need the token.
 
 ## Checking JSDocs
 
