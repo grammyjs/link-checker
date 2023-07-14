@@ -5,12 +5,12 @@ anchors.
 
 #### Checking Documentation
 
-To check for broken links in [grammY's documentaion source](https://github.com/grammyjs/website), clone the website repository and
+To check for broken links in [grammY's documentation source](https://github.com/grammyjs/website), clone the website repository and
 go to the `site/docs/` directory and run the following:
 
 ```sh
 $ deno run --allow-env --allow-net --allow-read \
-  https://raw.githubusercontent.com/grammyjs/link-checker/main/website_cli.ts [root directory = '.']
+  https://raw.githubusercontent.com/grammyjs/link-checker/main/website_cli.ts [root directory='.']
 ```
 
 Supports few arguments:
