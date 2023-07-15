@@ -29,7 +29,7 @@ Supported arguments:
 files. A fine-grained token with the default set of permissions will do.
 
 When you run the CLIs as mentioned you should get a gentle reminder about an environment variable: `GITHUB_TOKEN`. Here’s why:
-There might be links like https://github.com/OWNER/REPO/tree/dir#anchor or https://github.com/OWNER/REPO/blob/file.rst#anchor in
+There might be links like `https://github.com/OWNER/REPO/tree/dir#anchor` or `https://github.com/OWNER/REPO/blob/file.rst#anchor` in
 the documentation. These types of links are assumed to be pointing to a GitHub repository’s directory README or a
 [supported markup](https://github.com/github/markup/blob/master/README.md#markups) file, because there is an anchor. When normally
 fetched, their responses does not contain the actual content of that file, because the content is lazily loaded. So for checking
