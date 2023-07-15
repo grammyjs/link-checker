@@ -5,16 +5,16 @@ import { Issue } from "./types.ts";
 const LIST_BULLET = "—";
 
 export const ISSUE_TITLES: Record<Issue["type"], string> = {
-  empty_dom: "Empty DOM contents",
+  empty_dom: "Empty DOM content",
   redirected: "Redirections",
   no_response: "Empty responses",
   empty_anchor: "Empty anchors",
   missing_anchor: "Missing anchors",
-  not_ok_response: "Non-OK response",
-  wrong_extension: "Wrong extension",
-  disallow_extension: "Disallowed extension",
+  not_ok_response: "Non-OK responses",
+  wrong_extension: "Wrong extensions",
+  disallow_extension: "Disallowed extensions",
   unknown_link_format: "Unknown link type",
-  linked_file_not_found: "Missing file",
+  linked_file_not_found: "Missing files",
 };
 
 const MAX_TITLE_LENGTH = Object.values(ISSUE_TITLES)
@@ -28,7 +28,7 @@ export function makeIssueMessage(issue: Issue) {
     case "empty_dom":
       return `The document at ${cyan(decodeURI(issue.reference))} can't seem to be properly parsed.`;
     case "not_ok_response":
-      return `The link at ${cyan(issue.reference)} responded with a not OK status code ${red(`${issue.status}`)}.` +
+      return `The link ${cyan(issue.reference)} responded with a not OK status code ${red(`${issue.status}`)}.` +
         (issue.statusText ? ` It says "${issue.statusText}"` : "");
     case "wrong_extension":
       return `${cyan(decodeURI(issue.reference))} is ending with the extension ${yellow(issue.actual)} instead of ${
