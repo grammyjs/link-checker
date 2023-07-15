@@ -39,12 +39,12 @@ If you only have a few such links, then you most likely don’t need the token.
 ## Checking JSDocs
 
 Only the website repository has a special structure. All the other repositories that under grammY organization has JSDocs in their
-code and some contains external links. Currently only the documentation of the exported members are checked. So, for checking
-broken links in those files:
+code and some contains external links. Only JSDocs of the exported members are checked. So, for checking broken links in those
+files:
 
 ```sh
 $ deno run --allow-env --allow-net --allow-read \
-  https://raw.githubusercontent.com/grammyjs/link-checker/main/ts_doc_cli.ts --module <MODULE>
+  https://raw.githubusercontent.com/grammyjs/link-checker/main/tsdoc_cli.ts --module <MODULE>
 ```
 
 Supported arguments:
