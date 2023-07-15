@@ -70,10 +70,7 @@ export async function readMarkdownFiles(
         usedAnchors[filepath][filepath] ??= new Set();
       }
 
-      for (let anchor of parsed.anchors.used) {
-        if (anchor.startsWith("#")) {
-          anchor = anchor.slice(1);
-        }
+      for (const anchor of parsed.anchors.used) {
         usedAnchors[filepath][filepath].add(anchor);
       }
 
@@ -174,7 +171,7 @@ async function parseMarkdownFile(filepath: string) {
     } else if (link.startsWith(".")) {
       links.local.add(link);
     } else if (link.startsWith("#")) {
-      anchors.used.add(link);
+      anchors.used.add(link.slice(1));
     } else {
       issues.push({ type: "unknown_link_format", reference: link });
     }
