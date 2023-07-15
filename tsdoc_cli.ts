@@ -25,9 +25,13 @@ if (!isAbsoluteUrl && args.module[0] !== "/" && !args.module.startsWith("./") &&
   Deno.exit(1);
 }
 
-const issues = await findIssues(
-  URL.canParse(args.module) ? args.module : import.meta.resolve(args.module),
-);
+if (!isAbsoluteUrl && !Deno.lstatSync(args.module).isFile) {
+  error("The specified module must be a TypeScript/JavaScript file.");
+  Deno.exit(1);
+}
+
+const module = isAbsoluteUrl ? args.module : import.meta.resolve(args.module);
+const issues = await findIssues(module);
 
 if (issues.length === 0) {
   console.log(green("No broken links were found in any of the TSDocs!"));
