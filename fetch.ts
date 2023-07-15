@@ -115,7 +115,7 @@ export function isValidRedirection(from: URL, to: URL) {
 export function isValidAnchor(all: Set<string>, url: string, anchor: string) {
   const decodedAnchor = decodeURIComponent(anchor);
   if (all.has(anchor) || all.has(decodedAnchor)) return true;
-  if (!URL.canParse(url)) return true; // Has to be a local URL.
+  if (!URL.canParse(url)) return false; // Has to be a local URL.
 
   const { hostname, pathname } = new URL(url);
   if (hostname === "firebase.google.com" && pathname.startsWith("/docs")) {
