@@ -180,7 +180,7 @@ async function parseMarkdownFile(filepath: string) {
   return { anchors, links, issues };
 }
 
-export async function checkRelativeLink(
+async function checkRelativeLink(
   directory: string,
   localLink: string,
   options: {
@@ -232,7 +232,7 @@ export async function checkRelativeLink(
   }
 }
 
-export function findMissingAnchors(
+function findMissingAnchors(
   allAnchors: Record<string, Set<string>>,
   usedAnchors: Record<string, Record<string, Set<string>>>,
 ): Record<string, MissingAnchorIssue[]> {
