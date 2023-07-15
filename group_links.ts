@@ -12,6 +12,7 @@
  * @module
  */
 
+import { blue } from "https://deno.land/std@0.194.0/fmt/colors.ts";
 import { DOMParser } from "./deps/deno_dom.ts";
 import { yellow } from "./deps/std/fmt.ts";
 
@@ -139,14 +140,11 @@ function getRenderedGithubFile(repo: string, path: string, branch: string) {
 async function makeGithubAPIRequest<T>(query: string, mediaType = "application/vnd.github+json") {
   const [method, ...path] = query.split(" ");
   const url = GITHUB_API_ROOT + path.join(" ");
-  const response = await fetchWithRetries(url, {
-    method: method,
-    headers: {
-      "Accept": mediaType,
-      "Authorization": `Bearer ${Deno.env.get("GITHUB_TOKEN")}`,
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
+  const headers = new Headers({ "Accept": mediaType, "X-GitHub-Api-Version": "2022-11-28" });
+  if (GITHUB_TOKEN != null) {
+    headers.set("Authorization", `Bearer ${GITHUB_TOKEN}`);
+  }
+  const response = await fetchWithRetries(url, { method, headers });
   if (response == null || response.status === 404) return undefined;
   if (!response.ok) throw new Error(response.statusText);
   return (mediaType === "application/vnd.github.html" ? response.text() : response.json()) as T;
@@ -185,6 +183,7 @@ export async function resolveGroupedLinks(
 ) {
   // ==== Github Renderable files ====
   for (const { repository, path, originalReference, isDirREADME } of links.githubRenderableFiles) {
+    console.log(blue("fetch"), decodeURIComponent(originalReference));
     console.log("It's a renderable Github file with an anchor. Resolving using Github API...");
 
     if (!(repository in resolved.githubRenderableFiles)) {
