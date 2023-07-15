@@ -217,7 +217,7 @@ export async function checkRelativeLink(
 
   const path = join(directory, root);
   try {
-    if (path.includes("//")) {
+    if (root.includes("//")) {
       throw new Deno.errors.NotFound();
     }
     await Deno.lstat(path);
