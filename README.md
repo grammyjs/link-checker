@@ -23,9 +23,9 @@ Supported arguments:
 - `--allow-ext-html`: Defaults to `false`. Not needed if `--clean-url` is specified. Allows `.html` extension to be used to
   reference other local files.
 
-#### GitHub files
+### GitHub files
 
-**TLDR;** Set the environment variable `GITHUB_TOKEN` if documents contains a lot of links to GitHub markup (README, for example)
+TLDR; Set the environment variable `GITHUB_TOKEN` if documents contains a lot of links to GitHub markup (README, for example)
 files. A fine-grained token with the default set of permissions will do.
 
 When you run the CLIs as mentioned you should get a gentle reminder about an environment variable: `GITHUB_TOKEN`. Here’s why:
