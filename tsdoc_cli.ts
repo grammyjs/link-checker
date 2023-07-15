@@ -3,7 +3,7 @@ import { parseArgs } from "./deps/std/flags.ts";
 import { bold, green, red, yellow } from "./deps/std/fmt.ts";
 
 import { generateIssueList, prettySummary } from "./issues.ts";
-import { findIssues, TSDocLink, TSDocLinkIssue } from "./ts_doc.ts";
+import { findIssues, TSDocLink, TSDocLinkIssue } from "./tsdoc.ts";
 
 const args = parseArgs(Deno.args, {
   string: ["module"],
