@@ -69,7 +69,11 @@ export async function readMarkdownFiles(
         usedAnchors[filepath] ??= {};
         usedAnchors[filepath][filepath] ??= new Set();
       }
-      for (const anchor of parsed.anchors.used) {
+
+      for (let anchor of parsed.anchors.used) {
+        if (anchor.startsWith("#")) {
+          anchor = anchor.slice(1);
+        }
         usedAnchors[filepath][filepath].add(anchor);
       }
 
