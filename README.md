@@ -5,8 +5,8 @@ anchors.
 
 ## Checking Documentation
 
-To check for broken links in the [grammY documentation](https://github.com/grammyjs/website), clone the website repository
-and go to the `site/docs/` directory and run the following:
+To check for broken links in the [grammY documentation](https://github.com/grammyjs/website), clone the website repository and go
+to the `site/docs/` directory and run the following:
 
 ```sh
 $ deno run --allow-env --allow-net --allow-read \
