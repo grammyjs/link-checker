@@ -82,7 +82,7 @@ export function isValidRedirection(from: URL, to: URL) {
       // (2) A link to Deno Manual, and it is supposed to be redirected to the
       // latest version. And it does get redirected!
       (from.hostname === "deno.com" && from.pathname.startsWith("/manual/") &&
-        to.hostname === "deno.land" && to.pathname.startsWith("/manual@")) ||
+        to.hostname === "deno.com" && to.pathname.startsWith("/manual@")) ||
       // (3) Shortened https://youtu.be/{id} links redirecting to https://youtube.com/watch?v={id} links.
       (from.hostname === "youtu.be" && to.hostname === "www.youtube.com" && to.pathname === "/watch" &&
         to.searchParams.get("v") === from.pathname.substring(1)) ||
