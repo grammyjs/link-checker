@@ -69,9 +69,9 @@ export function isValidRedirection(from: URL, to: URL) {
   const general = (from: URL, to: URL) => {
     const segments = { from: from.pathname.split("/"), to: to.pathname.split("/") };
     return (
-      // (0) For www and https checks' general calls.
+      // For www and https checks' general calls.
       (from.href === to.href) ||
-      // (1) A third-party Deno module, supposed to be redirected to the latest
+      // A third-party Deno module, supposed to be redirected to the latest
       // version, and it does get redirected to the latest version.
       (from.hostname === "deno.land" && to.hostname === "deno.land" &&
         (
@@ -79,18 +79,14 @@ export function isValidRedirection(from: URL, to: URL) {
             to.pathname.startsWith("/x/") && segments.to[2] != null && segments.to[2].includes("@")) ||
           (from.pathname.startsWith("/std/") && to.pathname.startsWith("/std@"))
         )) ||
-      // (2) A link to Deno Manual, and it is supposed to be redirected to the
-      // latest version. And it does get redirected!
-      (from.hostname === "deno.com" && from.pathname.startsWith("/manual/") &&
-        to.hostname === "deno.com" && to.pathname.startsWith("/manual@")) ||
-      // (3) Shortened https://youtu.be/{id} links redirecting to https://youtube.com/watch?v={id} links.
+      // Shortened https://youtu.be/{id} links redirecting to https://youtube.com/watch?v={id} links.
       (from.hostname === "youtu.be" && to.hostname === "www.youtube.com" && to.pathname === "/watch" &&
         to.searchParams.get("v") === from.pathname.substring(1)) ||
-      // (4) Simply a slash was removed or added (I don't think we should care).
+      // Simply a slash was removed or added (I don't think we should care).
       (from.host === to.host && ((to.pathname + "/" === from.pathname) || (from.pathname + "/" === to.pathname))) ||
-      // (5) Maybe some search params was appended: like a language code or something.
+      // Maybe some search params was appended: like a language code or something.
       (from.host === to.host && from.pathname === to.pathname && from.searchParams.size !== to.searchParams.size) ||
-      // (6) Login redirections; e.g., Firebase Console -> Google Account Login
+      // Login redirections; e.g., Firebase Console -> Google Account Login
       (
         (to.hostname === "accounts.google.com" && segments.to[2] === "signin") || // Google
         (to.hostname === "github.com" && to.pathname.startsWith("/login")) // Github
