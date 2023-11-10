@@ -114,10 +114,16 @@ export function isValidAnchor(all: Set<string>, url: string, anchor: string) {
   if (!URL.canParse(url)) return false; // Has to be a local URL.
 
   const { hostname, pathname } = new URL(url);
+
+  // Firebase's (generally Google's) Documentation sometimes messes up the HTML response
+  // from the fetch as the contents are lazy loaded. So, the following is a hack: (not reliable)
   if (hostname === "firebase.google.com" && pathname.startsWith("/docs")) {
-    // Firebase's (generally Google's) Documentation sometimes messes up the HTML response
-    // from the fetch as the contents are lazy loaded. So, the following is a hack: (not reliable)
-    return all.has(anchor + "_1") || all.has(decodedAnchor + "_1");
+    for (let i = 1; i < 10; i++) { // It doesn't go up to 10 usually.
+      const suffix = "_" + i;
+      if (all.has(anchor + suffix) || all.has(decodedAnchor + suffix)) {
+        return true;
+      }
+    }
   }
   return false;
 }
