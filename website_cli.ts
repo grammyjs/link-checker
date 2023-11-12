@@ -19,6 +19,8 @@ if (args._.length > 1) {
 
 const ROOT_DIRECTORY = (args._[0] ?? ".").toString();
 
+console.log("Reading files and checking for bad links...");
+
 const issues = await readMarkdownFiles(ROOT_DIRECTORY, {
   isCleanUrl: args["clean-url"],
   indexFile: args["index-file"],

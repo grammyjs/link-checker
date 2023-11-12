@@ -31,6 +31,8 @@ if (!isAbsoluteUrl && !Deno.lstatSync(args.module).isFile) {
 }
 
 const module = isAbsoluteUrl ? args.module : import.meta.resolve(args.module);
+
+console.log("Fetching module and checking for bad links...");
 const issues = await findIssues(module);
 
 if (issues.length === 0) {

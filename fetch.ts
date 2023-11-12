@@ -25,10 +25,7 @@ const FETCH_OPTIONS: FetchOptions = {
   mode: "cors",
 };
 
-export function getRetryingFetch(
-  RETRY_FAILED_FETCH: boolean,
-  MAX_RETRIES: number,
-) {
+export function getRetryingFetch(retryOnFail: boolean, maxRetries: number) {
   return async function (url: string, options = FETCH_OPTIONS) {
     let retries = 0;
     let response: Response | undefined;
@@ -38,11 +35,11 @@ export function getRetryingFetch(
         response = await fetch(url, options);
       } catch (err) {
         error = err;
-        if (!RETRY_FAILED_FETCH) break;
+        if (!retryOnFail) break;
         console.log(`Retrying (${retries + 1})`);
       }
       retries++;
-    } while (retries < MAX_RETRIES && response == null);
+    } while (retries < maxRetries && response == null);
     if (response == null) {
       console.error("Couldn't get a proper response");
       console.error(error);

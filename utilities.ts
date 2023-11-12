@@ -41,11 +41,12 @@ export function getAnchors(
 }
 
 export function parseLink(href: string) {
-  if (!URL.canParse(href)) { // looks like an local link
+  if (!URL.canParse(href)) { // looks like an local relative link
     const hashPos = href.lastIndexOf("#");
     if (hashPos === -1) return { root: href, anchor: undefined };
     return { root: href.substring(0, hashPos), anchor: href.substring(hashPos + 1) };
   }
+  // not a relative link, hopefully external.
   const url = new URL(href);
   const anchor = url.hash === "" ? undefined : url.hash.substring(1);
   url.hash = "";
