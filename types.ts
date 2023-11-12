@@ -1,32 +1,65 @@
-import type { MarkdownIt } from "./deps.ts";
+import type { MarkdownIt } from "./deps/markdown-it/mod.ts";
 
-interface GeneralIssue {
-  type:
-    | "htmlInsteadOfMd"
-    | "fileNotFound"
-    | "notOk"
-    | "domParseFailure"
-    | "unknownLinkType"
-    | "disallowExtension";
+type MarkdownItToken = ReturnType<
+  InstanceType<typeof MarkdownIt>["parse"]
+>[number];
+
+interface BaseIssue {
   reference: string;
 }
-
+interface UnknownLinkFormatIssue extends BaseIssue {
+  type: "unknown_link_format";
+}
+interface EmptyDOMIssue extends BaseIssue {
+  type: "empty_dom";
+}
+interface EmptyAnchorIssue extends BaseIssue {
+  type: "empty_anchor";
+}
+interface NoResponseIssue extends BaseIssue {
+  type: "no_response";
+}
+interface NotOKResponseIssue extends BaseIssue {
+  type: "not_ok_response";
+  status: number;
+  statusText: string;
+}
+interface DisallowExtensionIssue extends BaseIssue {
+  type: "disallow_extension";
+  extension: "html" | "md";
+}
+interface WrongExtensionIssue extends BaseIssue {
+  type: "wrong_extension";
+  actual: string;
+  expected: string;
+}
+interface LinkedFileNotFoundIssue {
+  type: "linked_file_not_found";
+  filepath: string;
+}
 interface RedirectedIssue {
   type: "redirected";
   from: string;
   to: string;
 }
-
-interface MissingAnchorIssue {
-  type: "missingAnchor";
-  root: string;
+interface MissingAnchorIssue extends BaseIssue {
+  type: "missing_anchor";
   anchor: string;
 }
 
-export type Issue = GeneralIssue | RedirectedIssue | MissingAnchorIssue;
+type ExternalLinkIssue =
+  | RedirectedIssue
+  | NotOKResponseIssue
+  | NoResponseIssue
+  | MissingAnchorIssue
+  | EmptyDOMIssue;
 
-export type FetchOptions = Parameters<typeof fetch>[1];
+type Issue =
+  | ExternalLinkIssue
+  | DisallowExtensionIssue
+  | WrongExtensionIssue
+  | LinkedFileNotFoundIssue
+  | UnknownLinkFormatIssue
+  | EmptyAnchorIssue;
 
-export type MarkdownItToken = ReturnType<
-  InstanceType<typeof MarkdownIt>["parse"]
->[number];
+export type { ExternalLinkIssue, Issue, MarkdownItToken, MissingAnchorIssue };

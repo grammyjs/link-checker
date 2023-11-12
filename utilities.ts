@@ -1,18 +1,22 @@
-import { colors, type HTMLDocument } from "./deps.ts";
-import type { FetchOptions, MarkdownItToken } from "./types.ts";
+import { DOMParser, HTMLDocument } from "./deps/deno_dom.ts";
+import { magenta, red } from "./deps/std/fmt.ts";
+import { MarkdownIt } from "./deps/markdown-it/mod.ts";
 
-const VALID_REDIRECTIONS: Record<string, string> = {
-  "https://localtunnel.me": "https://theboroer.github.io/localtunnel-www/",
-};
+import { ACCEPTABLE_NOT_OK_STATUS, getRetryingFetch, isValidRedirection, transformURL } from "./fetch.ts";
+import type { ExternalLinkIssue, MarkdownItToken } from "./types.ts";
 
-export function warn(text: string) {
-  console.warn(`%cWARN%c ${text}`, "color: yellow", "color: none");
-}
-
-export const log = console.log;
-
-// deno-fmt-ignore
+const RETRY_FAILED_FETCH = true;
+const MAX_RETRIES = 5;
 const ID_TAGS = ["section", "h1", "h2", "h3", "h4", "h5", "h6", "div", "a"];
+
+export const fetchWithRetries = getRetryingFetch(RETRY_FAILED_FETCH, MAX_RETRIES);
+
+export function parseMarkdownContent(mdit: MarkdownIt, content: string) {
+  const html = mdit.render(content, {});
+  const tokens = mdit.parse(content, {});
+  const links = filterLinksFromTokens(tokens);
+  return { links, html };
+}
 
 export function getAnchors(
   document: HTMLDocument,
@@ -30,121 +34,75 @@ export function getAnchors(
     ...(opts.includeHref
       ? document.getElementsByTagName("a")
         .map((element) => element.getAttribute("href"))
-        .filter((href) => {
-          return href != null && href.startsWith("#") && href.length > 1;
-        }).map((href) => href!.substring(1))
+        .filter((href) => href != null && href.startsWith("#") && href.length > 1)
+        .map((href) => href!.substring(1))
       : []),
   ]);
 }
 
-// Transform the URL (if needed), before fetching
-export function transformURL(url: string) {
-  if (url.includes("://t.me/")) { // Some ISPs have blocked t.me
-    warn("Changing t.me to telegram.me for convenience");
-    url = url.replace("://t.me/", "://telegram.me/");
+export function parseLink(href: string) {
+  if (!URL.canParse(href)) { // looks like an local relative link
+    const hashPos = href.lastIndexOf("#");
+    if (hashPos === -1) return { root: href, anchor: undefined };
+    return { root: href.substring(0, hashPos), anchor: href.substring(hashPos + 1) };
   }
-  return url;
+  // not a relative link, hopefully external.
+  const url = new URL(href);
+  const anchor = url.hash === "" ? undefined : url.hash.substring(1);
+  url.hash = "";
+  return { root: url.href, anchor };
 }
 
-const FETCH_OPTIONS: FetchOptions = {
-  headers: {
-    "User-Agent":
-      "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/113.0",
-    "Accept":
-      "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    "Pragma": "no-cache",
-    "Cache-Control": "no-cache",
-  },
-  method: "GET",
-  mode: "cors",
-};
-
-export function getRetryingFetch(
-  RETRY_FAILED_FETCH: boolean,
-  MAX_RETRIES: number,
-) {
-  return async function (url: string) {
-    let retries = 0;
-    let response: Response | undefined;
-    // deno-lint-ignore no-explicit-any
-    let error: any;
-    do {
-      try {
-        response = await fetch(url, FETCH_OPTIONS);
-      } catch (err) {
-        error = err;
-        if (!RETRY_FAILED_FETCH) break;
-        log(colors.magenta("INFO"), `Retrying (${retries + 1})`);
-      }
-      retries++;
-    } while (retries < MAX_RETRIES && response == null);
-    if (response == null) {
-      log(colors.red("ERROR"), "Couldn't get a proper response");
-      console.error(error);
-    }
-    return response;
-  };
-}
-
-/** Some redirections are okay, so we ignore those changes */
-export function isValidRedirection(from: string, to: string) {
-  if (VALID_REDIRECTIONS[from] === to) return true;
-
-  const general = (from: string, to: string) => (
-    (from === to) || // for www's and https's general calls.
-    (
-      // CASE 1:
-      from.includes("deno.land/x/") && // a third-party module
-      !from.includes("@") && // supposed to be redirected to the latest version
-      to.includes("@") // and it does get redirected
-    ) ||
-    (
-      // CASE 2:
-      from.includes("deno.com/manual/") && // deno manual link: supposed to be redirected to the latest
-      to.includes("@") // and does get redirected to the latest.
-    ) ||
-    // CASE 3: short youtu.be links redirecting to youtube.com links.
-    to.includes(from.replace(new URL(from).origin + "/", "?v=")) ||
-    // CASE 4: maybe a slash was removed or added --> I don't think we should care.
-    ((to + "/" == from) || (from + "/" == to)) ||
-    // CASE 5: maybe some search params was appended --> like a language code?
-    to.includes(from + "?") || to.includes(from.split("#")[0] + "?") ||
-    // CASE 6: Login redirections; e.g., firebase console -> google login
-    ((to.includes("accounts.google.com") && to.includes("signin")) || // Google
-      (to.includes("github.com/login?return_to="))) // Github
-  );
-
-  // added a www to the domain and any of the above.
-  const www = !from.includes("://www.") && to.includes("://www.") &&
-    general(from.replace("://", "://www."), to);
-
-  // we wrote as http:// but was redirected to https --> I think thats ignorable?
-  const https = from.startsWith("http://") && to.startsWith("https://") &&
-    general(from.replace("http://", "https://"), to);
-
-  return general(from, to) || www || https;
-}
-
-/* Some anchors might be missing due to how the content is loaded in the website */
-export function isValidAnchor(root: string, all: Set<string>, anchor: string) {
-  if (root.includes("firebase.google.com/docs")) {
-    // firebase (generally google) docs sometimes messes up the response
-    // from the fetch as the contents are lazy loaded. the following is a hack:
-    return all.has(anchor + "_1") || all.has(decodeURIComponent(anchor) + "_1");
-  }
-  return false;
-}
-
-export function filterLinksFromTokens(tokens: MarkdownItToken[]) {
+function filterLinksFromTokens(tokens: MarkdownItToken[]) {
   const links: string[] = [];
   for (const token of tokens) {
     if (token.type === "link_open") {
       const href = token.attrGet("href");
-      if (href != null) links.push(decodeURI(href));
+      if (href != null) links.push(href);
     }
     if (token.children != null) {
       links.push(...filterLinksFromTokens(token.children));
     }
   }
-  return links;
+  return new Set(links);
+}
+
+export async function checkExternalUrl(url: string, utils: { domParser: DOMParser }) {
+  const issues: ExternalLinkIssue[] = [];
+  const transformed = transformURL(url);
+  const response = await fetchWithRetries(transformed);
+
+  if (response == null) {
+    issues.push({ type: "no_response", reference: transformed });
+    return { issues };
+  }
+
+  if (response.redirected && !isValidRedirection(new URL(transformed), new URL(response.url))) {
+    issues.push({ type: "redirected", from: transformed, to: response.url });
+  }
+
+  if (!response.ok && ACCEPTABLE_NOT_OK_STATUS[url] !== response.status) {
+    issues.push({ type: "not_ok_response", reference: url, status: response.status, statusText: response.statusText });
+    console.log(red("not OK"), response.status, response.statusText);
+    return { issues };
+  }
+
+  const contentType = response.headers.get("content-type");
+  if (contentType == null) {
+    console.log(magenta("No Content-Type header was found in the response. Continuing anyway"));
+  } else if (!contentType.includes("text/html")) {
+    console.log(magenta(`Content-Type header is ${contentType}; continuing with HTML anyway`));
+  }
+
+  try {
+    const content = await response.text();
+    const document = utils.domParser.parseFromString(content, "text/html");
+    if (document == null) throw new Error("Failed to parse the webpage: skipping");
+    const anchors = getAnchors(document, { includeHref: true });
+    return { issues, anchors, document };
+  } catch (error) {
+    issues.push({ type: "empty_dom", reference: url });
+    console.error(red("error:"), error);
+    return { issues };
+  }
 }
