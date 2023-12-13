@@ -1,7 +1,10 @@
+import { ExtendedResponse } from "./types.ts";
+
 export const ACCEPTABLE_NOT_OK_STATUS: Record<string, number> = {
   "https://dash.cloudflare.com/login": 403,
   "https://dash.cloudflare.com/?account=workers": 403,
   "https://api.telegram.org/file/bot": 404,
+  "https://accounts.google.com/signup": 302,
 };
 
 const VALID_REDIRECTIONS: Record<string, string> = {
@@ -11,6 +14,10 @@ const VALID_REDIRECTIONS: Record<string, string> = {
   "https://telegram.me/name-of-your-bot?start=custom-payload": "https://telegram.org/",
   "http://telegram.me/addstickers/": "https://telegram.org/",
 };
+
+const MANUAL_REDIRECTION: Array<string> = [
+  "https://accounts.google.com/signup",
+];
 
 type FetchOptions = Parameters<typeof fetch>[1];
 
@@ -28,18 +35,50 @@ const FETCH_OPTIONS: FetchOptions = {
 export function getRetryingFetch(retryOnFail: boolean, maxRetries: number) {
   return async function (url: string, options = FETCH_OPTIONS) {
     let retries = 0;
-    let response: Response | undefined;
+    let retryDelay = 2000; // 2 seconds
+    const maxDelay = 30000; // 30 seconds
+    const timeout = 30000; // 30 seconds
+    let response: ExtendedResponse | undefined | null;
     let error: unknown;
     do {
+      if (retries > 0) {
+        console.log(`Retrying (${retries}) after ${retryDelay / 1000} seconds`);
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
+        retryDelay = Math.min(retryDelay * 2, maxDelay);
+        console.log("Retrying...");
+      }
       try {
-        response = await fetch(url, options);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        if (MANUAL_REDIRECTION.includes(url)) {
+          response = await fetch(url, { ...options, redirect: "manual", signal: controller.signal });
+          response.isRedirected = true;
+        } else {
+          response = await fetch(url, { ...options, signal: controller.signal });
+          response.isRedirected = response.redirected;
+        }
+        clearTimeout(timeoutId);
       } catch (err) {
         error = err;
         if (!retryOnFail) break;
-        console.log(`Retrying (${retries + 1})`);
+
+        // Check if the error is due to timeout
+        if (err.name === "AbortError") {
+          console.error(`Timeout (${timeout / 1000} seconds) reached`);
+        }
+      }
+
+      if (
+        retries <= maxRetries &&
+        response != null &&
+        // 408 Request Timeout
+        // 5xx Internal Server Error
+        (response.status === 408 || response.status > 500)
+      ) {
+        response = null; // Retry!
       }
       retries++;
-    } while (retries < maxRetries && response == null);
+    } while (retries <= maxRetries && response == null);
     if (response == null) {
       console.error("Couldn't get a proper response");
       console.error(error);
@@ -85,7 +124,7 @@ export function isValidRedirection(from: URL, to: URL) {
       (from.host === to.host && from.pathname === to.pathname && from.searchParams.size !== to.searchParams.size) ||
       // Login redirections; e.g., Firebase Console -> Google Account Login
       (
-        (to.hostname === "accounts.google.com" && segments.to[2] === "signin") || // Google
+        (to.hostname === "accounts.google.com" && (segments.to[2] === "signin" || segments.to[1] === "signup")) || // Google
         (to.hostname === "github.com" && to.pathname.startsWith("/login")) // Github
       )
     );

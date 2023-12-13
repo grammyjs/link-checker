@@ -77,7 +77,7 @@ export async function checkExternalUrl(url: string, utils: { domParser: DOMParse
     return { issues };
   }
 
-  if (response.redirected && !isValidRedirection(new URL(transformed), new URL(response.url))) {
+  if (response.isRedirected && !isValidRedirection(new URL(transformed), new URL(response.url))) {
     issues.push({ type: "redirected", from: transformed, to: response.url });
   }
 

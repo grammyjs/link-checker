@@ -1,1 +1,1 @@
-export { default as MarkdownIt } from "https://esm.sh/markdown-it@13.0.2";
+export { default as MarkdownIt } from "https://esm.sh/markdown-it@14.0.0/";

@@ -12,7 +12,7 @@
  * @module
  */
 
-import { blue } from "https://deno.land/std@0.194.0/fmt/colors.ts";
+import { blue } from "https://deno.land/std@0.208.0/fmt/colors.ts";
 import { DOMParser } from "./deps/deno_dom.ts";
 import { yellow } from "./deps/std/fmt.ts";
 
