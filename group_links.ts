@@ -70,7 +70,7 @@ type GithubFiles = Record<string, {
 }>;
 
 // "tree" is the key
-export function isGithubReadmeWithAnchorUrl(url: URL) {
+function isGithubReadmeWithAnchorUrl(url: URL) {
   if (url.hostname !== "github.com" || url.hash.length < 2 || url.hash === "#readme") return false; // fast path
   const segments = url.pathname.split("/");
   if (segments.at(-1) === "") segments.pop();
