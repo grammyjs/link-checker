@@ -70,11 +70,11 @@ type GithubFiles = Record<string, {
 }>;
 
 // "tree" is the key
-function isGithubReadmeWithAnchorUrl(url: URL) {
-  if (url.hostname !== "github.com") return false; // fast path
+export function isGithubReadmeWithAnchorUrl(url: URL) {
+  if (url.hostname !== "github.com" || url.hash.length < 2 || url.hash === "#readme") return false; // fast path
   const segments = url.pathname.split("/");
   if (segments.at(-1) === "") segments.pop();
-  return url.hash.length > 1 && url.hash !== "#readme" && segments[3] === "tree" && segments.length > 5;
+  return segments.length === 3 || (segments[3] === "tree" && segments.length >= 5);
 }
 
 // "blob" is the key
