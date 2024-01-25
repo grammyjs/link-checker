@@ -124,7 +124,7 @@ export function isValidRedirection(from: URL, to: URL) {
       (from.host === to.host && from.pathname === to.pathname && from.searchParams.size !== to.searchParams.size) ||
       // Login redirections; e.g., Firebase Console -> Google Account Login
       (
-        (to.hostname === "accounts.google.com" && (segments.to[2] === "signin" || segments.to[1] === "signup")) || // Google
+        (to.hostname === "accounts.google.com" && (segments.to.includes("signin") || segments.to.includes("signup"))) || // Google
         (to.hostname === "github.com" && to.pathname.startsWith("/login")) // Github
       )
     );
