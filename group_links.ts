@@ -12,9 +12,8 @@
  * @module
  */
 
-import { blue } from "https://deno.land/std@0.208.0/fmt/colors.ts";
 import { DOMParser } from "./deps/deno_dom.ts";
-import { yellow } from "./deps/std/fmt.ts";
+import { blue, yellow } from "./deps/std/fmt.ts";
 
 import { ExternalLinkIssue } from "./types.ts";
 import { fetchWithRetries, getAnchors, parseLink } from "./utilities.ts";
