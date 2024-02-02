@@ -1,4 +1,4 @@
-import { ResponseInfo } from "./types.ts";
+import { type ResponseInfo } from "./types.ts";
 
 export const ACCEPTABLE_NOT_OK_STATUS: Record<string, number> = {
   "https://dash.cloudflare.com/login": 403,
