@@ -78,7 +78,6 @@ export async function checkExternalUrl(url: string, utils: { domParser: DOMParse
   }
 
   if (redirected && MANUAL_REDIRECTIONS.includes(transformed)) {
-    console.log(isValidRedirection(new URL(transformed), new URL(redirectedUrl)));
     return { issues };
   }
 
