@@ -2,14 +2,14 @@ import { DOMParser, HTMLDocument } from "./deps/deno_dom.ts";
 import { magenta, red } from "./deps/std/fmt.ts";
 import { MarkdownIt } from "./deps/markdown-it/mod.ts";
 
-import { ACCEPTABLE_NOT_OK_STATUS, getRetryingFetch, isValidRedirection, transformURL } from "./fetch.ts";
+import { ACCEPTABLE_NOT_OK_STATUS, getFetchWithRetries, isValidRedirection, MANUAL_REDIRECTIONS, transformURL } from "./fetch.ts";
 import type { ExternalLinkIssue, MarkdownItToken } from "./types.ts";
 
 const RETRY_FAILED_FETCH = true;
 const MAX_RETRIES = 5;
 const ID_TAGS = ["section", "h1", "h2", "h3", "h4", "h5", "h6", "div", "a"];
 
-export const fetchWithRetries = getRetryingFetch(RETRY_FAILED_FETCH, MAX_RETRIES);
+export const fetchWithRetries = getFetchWithRetries(RETRY_FAILED_FETCH, MAX_RETRIES);
 
 export function parseMarkdownContent(mdit: MarkdownIt, content: string) {
   const html = mdit.render(content, {});
@@ -70,14 +70,19 @@ function filterLinksFromTokens(tokens: MarkdownItToken[]) {
 export async function checkExternalUrl(url: string, utils: { domParser: DOMParser }) {
   const issues: ExternalLinkIssue[] = [];
   const transformed = transformURL(url);
-  const response = await fetchWithRetries(transformed);
+  const { response, redirected, redirectedUrl } = await fetchWithRetries(transformed);
 
   if (response == null) {
     issues.push({ type: "no_response", reference: transformed });
     return { issues };
   }
 
-  if (response.isRedirected && !isValidRedirection(new URL(transformed), new URL(response.url))) {
+  if (redirected && MANUAL_REDIRECTIONS.includes(transformed)) {
+    console.log(isValidRedirection(new URL(transformed), new URL(redirectedUrl)));
+    return { issues };
+  }
+
+  if (redirected && !isValidRedirection(new URL(transformed), new URL(redirectedUrl))) {
     issues.push({ type: "redirected", from: transformed, to: response.url });
   }
 

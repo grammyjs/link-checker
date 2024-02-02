@@ -1,4 +1,4 @@
-import { ExtendedResponse } from "./types.ts";
+import { ResponseInfo } from "./types.ts";
 
 export const ACCEPTABLE_NOT_OK_STATUS: Record<string, number> = {
   "https://dash.cloudflare.com/login": 403,
@@ -15,13 +15,13 @@ const VALID_REDIRECTIONS: Record<string, string> = {
   "http://telegram.me/addstickers/": "https://telegram.org/",
 };
 
-const MANUAL_REDIRECTION: Array<string> = [
+export const MANUAL_REDIRECTIONS: Array<string> = [
   "https://accounts.google.com/signup",
 ];
 
 type FetchOptions = Parameters<typeof fetch>[1];
 
-const FETCH_OPTIONS: FetchOptions = {
+export const FETCH_OPTIONS: FetchOptions = {
   method: "GET",
   headers: {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/113.0",
@@ -32,58 +32,53 @@ const FETCH_OPTIONS: FetchOptions = {
   mode: "cors",
 };
 
-export function getRetryingFetch(retryOnFail: boolean, maxRetries: number) {
-  return async function (url: string, options = FETCH_OPTIONS) {
+export function getFetchWithRetries(retryOnFail: boolean, maxRetries: number) {
+  return async function (url: string, options = FETCH_OPTIONS): Promise<ResponseInfo> {
     let retries = 0;
-    let retryDelay = 2000; // 2 seconds
-    const maxDelay = 30000; // 30 seconds
-    const timeout = 30000; // 30 seconds
-    let response: ExtendedResponse | undefined | null;
+    const retryDelay = 3_000;
+    const timeout = 30_000;
+
+    const info: ResponseInfo = { redirected: false, redirectedUrl: "" };
     let error: unknown;
+
     do {
       if (retries > 0) {
-        console.log(`Retrying (${retries}) after ${retryDelay / 1000} seconds`);
+        console.log(`Retrying (${retries}) after ${retryDelay}ms`);
         await new Promise((resolve) => setTimeout(resolve, retryDelay));
-        retryDelay = Math.min(retryDelay * 2, maxDelay);
-        console.log("Retrying...");
       }
+
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-        if (MANUAL_REDIRECTION.includes(url)) {
-          response = await fetch(url, { ...options, redirect: "manual", signal: controller.signal });
-          response.isRedirected = true;
+        const signal = AbortSignal.timeout(timeout);
+        if (MANUAL_REDIRECTIONS.includes(url)) {
+          info.response = await fetch(url, { ...options, signal, redirect: "manual" });
+          info.redirected = info.response.status >= 300 && info.response.status < 400; // to make sure
+          const locationHeader = info.response.headers.get("Location");
+          info.redirectedUrl = info.redirected && locationHeader != null ? locationHeader : info.response.url;
         } else {
-          response = await fetch(url, { ...options, signal: controller.signal });
-          response.isRedirected = response.redirected;
+          info.response = await fetch(url, { ...options, signal });
+          info.redirected = info.response.redirected;
+          info.redirectedUrl = info.response.url;
         }
-        clearTimeout(timeoutId);
       } catch (err) {
         error = err;
         if (!retryOnFail) break;
-
-        // Check if the error is due to timeout
-        if (err.name === "AbortError") {
-          console.error(`Timeout (${timeout / 1000} seconds) reached`);
-        }
+        if (err.name === "TimeoutError") console.error(`Timeout of ${timeout}ms reached`);
       }
 
+      // Retry only if there is not response and if the request naturally
+      // timed out or if its Internal Server Errors (5xx).
       if (
-        retries <= maxRetries &&
-        response != null &&
-        // 408 Request Timeout
-        // 5xx Internal Server Error
-        (response.status === 408 || response.status > 500)
-      ) {
-        response = null; // Retry!
-      }
-      retries++;
-    } while (retries <= maxRetries && response == null);
-    if (response == null) {
+        retries <= maxRetries && info.response != null &&
+        (info.response.status === 408 || info.response.status >= 500)
+      ) info.response = null; // to satisfy the condition for retrying.
+    } while (retries++ < maxRetries && info.response == null);
+
+    if (info.response == null) {
       console.error("Couldn't get a proper response");
       console.error(error);
     }
-    return response;
+
+    return info;
   };
 }
 
