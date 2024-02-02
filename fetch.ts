@@ -4,7 +4,6 @@ export const ACCEPTABLE_NOT_OK_STATUS: Record<string, number> = {
   "https://dash.cloudflare.com/login": 403,
   "https://dash.cloudflare.com/?account=workers": 403,
   "https://api.telegram.org/file/bot": 404,
-  "https://accounts.google.com/signup": 302,
 };
 
 const VALID_REDIRECTIONS: Record<string, string> = {
