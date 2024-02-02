@@ -140,10 +140,8 @@ async function makeGithubAPIRequest<T>(query: string, mediaType = "application/v
   const [method, ...path] = query.split(" ");
   const url = GITHUB_API_ROOT + path.join(" ");
   const headers = new Headers({ "Accept": mediaType, "X-GitHub-Api-Version": "2022-11-28" });
-  if (GITHUB_TOKEN != null) {
-    headers.set("Authorization", `Bearer ${GITHUB_TOKEN}`);
-  }
-  const response = await fetchWithRetries(url, { method, headers });
+  if (GITHUB_TOKEN != null) headers.set("Authorization", `Bearer ${GITHUB_TOKEN}`);
+  const { response } = await fetchWithRetries(url, { method, headers });
   if (response == null || response.status === 404) return undefined;
   if (!response.ok) throw new Error(response.statusText);
   return (mediaType === "application/vnd.github.html" ? response.text() : response.json()) as T;
