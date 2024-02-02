@@ -62,4 +62,10 @@ type Issue =
   | UnknownLinkFormatIssue
   | EmptyAnchorIssue;
 
-export type { ExternalLinkIssue, Issue, MarkdownItToken, MissingAnchorIssue };
+interface ResponseInfo {
+  response?: Response | null;
+  redirected: boolean;
+  redirectedUrl: string; // may become useful later.
+}
+
+export type { ExternalLinkIssue, Issue, MarkdownItToken, MissingAnchorIssue, ResponseInfo };

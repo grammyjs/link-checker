@@ -1,4 +1,4 @@
-import { parseArgs } from "./deps/std/flags.ts";
+import { parseArgs } from "./deps/std/cli.ts";
 import { bold, green, red } from "./deps/std/fmt.ts";
 
 import { generateIssueList, prettySummary } from "./issues.ts";

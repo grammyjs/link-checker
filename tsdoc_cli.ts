@@ -1,5 +1,5 @@
 import { error } from "./deps/common.ts";
-import { parseArgs } from "./deps/std/flags.ts";
+import { parseArgs } from "./deps/std/cli.ts";
 import { bold, green, red, yellow } from "./deps/std/fmt.ts";
 
 import { generateIssueList, prettySummary } from "./issues.ts";

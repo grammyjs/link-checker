@@ -1,3 +1,5 @@
+import { type ResponseInfo } from "./types.ts";
+
 export const ACCEPTABLE_NOT_OK_STATUS: Record<string, number> = {
   "https://dash.cloudflare.com/login": 403,
   "https://dash.cloudflare.com/?account=workers": 403,
@@ -12,9 +14,13 @@ const VALID_REDIRECTIONS: Record<string, string> = {
   "http://telegram.me/addstickers/": "https://telegram.org/",
 };
 
+export const MANUAL_REDIRECTIONS: Array<string> = [
+  "https://accounts.google.com/signup",
+];
+
 type FetchOptions = Parameters<typeof fetch>[1];
 
-const FETCH_OPTIONS: FetchOptions = {
+export const FETCH_OPTIONS: FetchOptions = {
   method: "GET",
   headers: {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/113.0",
@@ -25,26 +31,53 @@ const FETCH_OPTIONS: FetchOptions = {
   mode: "cors",
 };
 
-export function getRetryingFetch(retryOnFail: boolean, maxRetries: number) {
-  return async function (url: string, options = FETCH_OPTIONS) {
+export function getFetchWithRetries(retryOnFail: boolean, maxRetries: number) {
+  return async function (url: string, options = FETCH_OPTIONS): Promise<ResponseInfo> {
     let retries = 0;
-    let response: Response | undefined;
+    const retryDelay = 3_000;
+    const timeout = 30_000;
+
+    const info: ResponseInfo = { redirected: false, redirectedUrl: "" };
     let error: unknown;
+
     do {
+      if (retries > 0) {
+        console.log(`Retrying (${retries}) after ${retryDelay}ms`);
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
+      }
+
       try {
-        response = await fetch(url, options);
+        const signal = AbortSignal.timeout(timeout);
+        if (MANUAL_REDIRECTIONS.includes(url)) {
+          info.response = await fetch(url, { ...options, signal, redirect: "manual" });
+          info.redirected = info.response.status >= 300 && info.response.status < 400; // to make sure
+          const locationHeader = info.response.headers.get("Location");
+          info.redirectedUrl = info.redirected && locationHeader != null ? locationHeader : info.response.url;
+        } else {
+          info.response = await fetch(url, { ...options, signal });
+          info.redirected = info.response.redirected;
+          info.redirectedUrl = info.response.url;
+        }
       } catch (err) {
         error = err;
         if (!retryOnFail) break;
-        console.log(`Retrying (${retries + 1})`);
+        if (err.name === "TimeoutError") console.error(`Timeout of ${timeout}ms reached`);
       }
-      retries++;
-    } while (retries < maxRetries && response == null);
-    if (response == null) {
+
+      // Retry only if there is not response and if the request naturally
+      // timed out or if its Internal Server Errors (5xx).
+      if (
+        retries <= maxRetries && info.response != null &&
+        (info.response.status === 408 || info.response.status >= 500)
+      ) info.response = null; // to satisfy the condition for retrying.
+    } while (retries++ < maxRetries && info.response == null);
+
+    if (info.response == null) {
       console.error("Couldn't get a proper response");
       console.error(error);
     }
-    return response;
+
+    return info;
   };
 }
 
@@ -85,7 +118,7 @@ export function isValidRedirection(from: URL, to: URL) {
       (from.host === to.host && from.pathname === to.pathname && from.searchParams.size !== to.searchParams.size) ||
       // Login redirections; e.g., Firebase Console -> Google Account Login
       (
-        (to.hostname === "accounts.google.com" && segments.to[2] === "signin") || // Google
+        (to.hostname === "accounts.google.com" && (segments.to.includes("signin") || segments.to.includes("signup"))) || // Google
         (to.hostname === "github.com" && to.pathname.startsWith("/login")) // Github
       )
     );
