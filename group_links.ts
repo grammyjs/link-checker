@@ -69,8 +69,9 @@ type GithubFiles = Record<string, {
 }>;
 
 // "tree" is the key
-function isGithubReadmeWithAnchorUrl(url: URL) {
-  if (url.hostname !== "github.com" || url.hash.length < 2 || url.hash === "#readme") return false; // fast path
+export function isGithubReadmeWithAnchorUrl(url: URL) {
+  if (url.hostname !== "github.com" || url.hash.length < 2) return false; // fast path
+  if (url.hash === "#readme") return true;
   const segments = url.pathname.split("/");
   if (segments.at(-1) === "") segments.pop();
   return segments.length === 3 || (segments[3] === "tree" && segments.length >= 5);
@@ -180,7 +181,10 @@ export async function resolveGroupedLinks(
 ) {
   // ==== Github Renderable files ====
   for (const { repository, path, originalReference, isDirREADME } of links.githubRenderableFiles) {
+    const { root: reference, anchor } = parseLink(originalReference);
     console.log(blue("fetch"), decodeURIComponent(originalReference));
+
+    if (anchor === "#readme" && isDirREADME) continue; // fast path
     console.log("It's a renderable Github file with an anchor. Resolving using Github API...");
 
     if (!(repository in resolved.githubRenderableFiles)) {
@@ -189,7 +193,6 @@ export async function resolveGroupedLinks(
     }
     const branches = resolved.githubRenderableFiles[repository].allBranches;
     const { filepath, branch = "" } = parseGithubFilepathWithBranch(path, branches);
-    const { root: reference, anchor } = parseLink(originalReference);
 
     resolved.githubRenderableFiles[repository].issues[branch] ??= {};
     resolved.githubRenderableFiles[repository].issues[branch][filepath] ??= [];
@@ -209,24 +212,21 @@ export async function resolveGroupedLinks(
       ? await getREADME(repository, filepath, branch)
       : await getRenderedGithubFile(repository, filepath, branch);
     if (readme == null) {
-      resolved.githubRenderableFiles[repository].issues[branch][filepath].push(
-        { type: "not_ok_response", status: 404, reference, statusText: "Not found" },
-      );
+      resolved.githubRenderableFiles[repository].issues[branch][filepath]
+        .push({ type: "not_ok_response", status: 404, reference, statusText: "Not found" });
       continue;
     }
     const document = utils.domParser.parseFromString(readme, "text/html");
     if (document == null) {
-      resolved.githubRenderableFiles[repository].issues[branch][filepath].push(
-        { type: "empty_dom", reference },
-      );
+      resolved.githubRenderableFiles[repository].issues[branch][filepath]
+        .push({ type: "empty_dom", reference });
       continue;
     }
 
     const allAnchors = getAnchors(document, { includeHref: true });
     if (anchor != null && !allAnchors.has(anchor)) {
-      resolved.githubRenderableFiles[repository].issues[branch][filepath].push(
-        { type: "missing_anchor", reference, anchor },
-      );
+      resolved.githubRenderableFiles[repository].issues[branch][filepath]
+        .push({ type: "missing_anchor", reference, anchor });
     }
 
     resolved.githubRenderableFiles[repository].anchors[branch] ??= {};

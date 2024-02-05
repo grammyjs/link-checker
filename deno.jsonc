@@ -4,6 +4,7 @@
     "lineWidth": 130
   },
   "tasks": {
-    "dev": "deno fmt && deno lint && deno check **/*.ts"
+    "dev": "deno fmt && deno lint && deno check **/*.ts",
+    "test": "deno test --allow-env --allow-read"
   }
 }
