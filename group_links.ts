@@ -13,7 +13,7 @@
  */
 
 import { DOMParser } from "./deps/deno_dom.ts";
-import { blue, yellow } from "./deps/std/fmt.ts";
+import { blue, dim, yellow } from "./deps/std/fmt.ts";
 
 import { ExternalLinkIssue } from "./types.ts";
 import { fetchWithRetries, getAnchors, parseLink } from "./utilities.ts";
@@ -116,6 +116,7 @@ async function getBranches(repo: string) {
   const branchNames: string[] = [];
   do {
     const query = `GET /repos/${repo}/branches?per_page=100&page=${page++}`;
+    console.log(dim(`  Getting branches of ${repo} (page 1)`));
     const branches = await makeGithubAPIRequest<Array<{ name: string }>>(query) ?? [];
     branchNames.push(...branches.map((branch) => branch.name));
     if (branches.length < 100) continueFetching = false;
@@ -124,6 +125,7 @@ async function getBranches(repo: string) {
 }
 
 function getREADME(repo: string, path: string, branch: string) {
+  console.log(dim(`  Getting renderable README file (${repo}${branch ? `#${branch}` : ""})`));
   return makeGithubAPIRequest<string>(
     `GET /repos/${repo}/readme/${path}${branch !== "" ? `?ref=${branch}` : ""}`,
     "application/vnd.github.html",
@@ -131,6 +133,7 @@ function getREADME(repo: string, path: string, branch: string) {
 }
 
 function getRenderedGithubFile(repo: string, path: string, branch: string) {
+  console.log(dim(`  Getting renderable file (${repo}#${branch}/${path})`));
   return makeGithubAPIRequest<string>(
     `GET /repos/${repo}/contents/${path}${branch !== "" ? `?ref=${branch}` : ""}`,
     "application/vnd.github.html",
@@ -141,7 +144,7 @@ async function makeGithubAPIRequest<T>(query: string, mediaType = "application/v
   const [method, ...path] = query.split(" ");
   const url = GITHUB_API_ROOT + path.join(" ");
   const headers = new Headers({ "Accept": mediaType, "X-GitHub-Api-Version": "2022-11-28" });
-  if (GITHUB_TOKEN != null) headers.set("Authorization", `Bearer ${GITHUB_TOKEN}`);
+  if (GITHUB_TOKEN != null && GITHUB_TOKEN.trim() !== "") headers.set("Authorization", `Bearer ${GITHUB_TOKEN}`);
   const { response } = await fetchWithRetries(url, { method, headers });
   if (response == null || response.status === 404) return undefined;
   if (!response.ok) throw new Error(response.statusText);
@@ -184,26 +187,23 @@ export async function resolveGroupedLinks(
     const { root: reference, anchor } = parseLink(originalReference);
     console.log(blue("fetch"), decodeURIComponent(originalReference));
 
-    if (anchor === "#readme" && isDirREADME) continue; // fast path
-    console.log("It's a renderable Github file with an anchor. Resolving using Github API...");
-
     if (!(repository in resolved.githubRenderableFiles)) {
       const allBranches = await getBranches(repository);
       resolved.githubRenderableFiles[repository] = { allBranches, anchors: {}, issues: {} };
     }
     const branches = resolved.githubRenderableFiles[repository].allBranches;
     const { filepath, branch = "" } = parseGithubFilepathWithBranch(path, branches);
-
     resolved.githubRenderableFiles[repository].issues[branch] ??= {};
     resolved.githubRenderableFiles[repository].issues[branch][filepath] ??= [];
 
     // If its an already fetched file
     const anchors = resolved.githubRenderableFiles[repository].anchors[branch]?.[filepath];
-
-    if (anchor != null && anchors != null && !anchors.has(anchor)) {
-      resolved.githubRenderableFiles[repository].issues[branch][filepath].push(
-        { type: "missing_anchor", reference, anchor },
-      );
+    if (anchor != null && anchors != null) { // it is already fetched.
+      if (!anchors.has(anchor)) {
+        resolved.githubRenderableFiles[repository].issues[branch][filepath].push(
+          { type: "missing_anchor", reference, anchor },
+        );
+      }
       continue;
     }
 
@@ -224,6 +224,7 @@ export async function resolveGroupedLinks(
     }
 
     const allAnchors = getAnchors(document, { includeHref: true });
+    allAnchors.add("readme");
     if (anchor != null && !allAnchors.has(anchor)) {
       resolved.githubRenderableFiles[repository].issues[branch][filepath]
         .push({ type: "missing_anchor", reference, anchor });
