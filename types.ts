@@ -4,7 +4,21 @@ type MarkdownItToken = ReturnType<
   InstanceType<typeof MarkdownIt>["parse"]
 >[number];
 
+export const ISSUE_TYPES = [
+  "unknown_link_format",
+  "empty_dom",
+  "empty_anchor",
+  "no_response",
+  "not_ok_response",
+  "disallow_extension",
+  "wrong_extension",
+  "linked_file_not_found",
+  "redirected",
+  "missing_anchor",
+] as const;
+
 interface BaseIssue {
+  type: typeof ISSUE_TYPES[number];
   reference: string;
 }
 interface UnknownLinkFormatIssue extends BaseIssue {
