@@ -3,7 +3,7 @@ import { anchorPlugin } from "./deps/markdown-it/anchor.ts";
 import { MarkdownIt } from "./deps/markdown-it/mod.ts";
 import { slugifyPlugin } from "./deps/markdown-it/slugify.ts";
 import { extname, join } from "./deps/std/path.ts";
-import { blue, magenta } from "./deps/std/fmt.ts";
+import { blue, dim, magenta } from "./deps/std/fmt.ts";
 
 import { isValidAnchor, transformURL } from "./fetch.ts";
 import { Issue, MissingAnchorIssue } from "./types.ts";
@@ -53,7 +53,7 @@ export async function readMarkdownFiles(
       }
 
       if (extname(entry.name) !== ".md") continue;
-      console.log(magenta("reading"), filepath);
+      console.log(dim(`${magenta("reading")} ${filepath}`));
 
       const parsed = await parseMarkdownFile(filepath);
 
