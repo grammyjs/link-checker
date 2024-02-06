@@ -41,7 +41,7 @@ The following links does not return any response (probably timed out). This coul
 network issue, an internal server issue, or the page doesn't exist at all for some reason.`,
   "disallow_extension": `\
 Some local files seems to be linked with extension, and the use of extensions while linking
-local documents are prohibited. Remove them.`,
+local documents is prohibited. Remove the following extensions.`,
 };
 
 function makePrettyDetails(issue: Issue) {
