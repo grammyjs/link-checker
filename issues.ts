@@ -192,7 +192,7 @@ export async function generateReport(issues: Record<string, Issue[]>) {
   const issueTypes = Object.keys(grouped) as Issue["type"][];
   for (const type of issueTypes) {
     const title = ISSUE_TITLES[type];
-    report += "\n\n" + bold(title) + " (" + grouped[type].length + ")\n";
+    report += "\n" + bold(title) + " (" + grouped[type].length + ")\n";
     report += ISSUE_DESCRIPTIONS[type];
     for (const { details, stack } of grouped[type]) {
       report += "\n\n";
@@ -204,5 +204,9 @@ export async function generateReport(issues: Record<string, Issue[]>) {
     total += grouped[type].length;
   }
 
-  return { total, report: red(bold(`Found ${total} issues in the documentation:`)) + report + "Checking completed." };
+  return {
+    total,
+    report: "\n" + red(bold(`Found ${total} issues across the documentation:`)) + "\n" + report +
+      `\nChecking completed and found ${bold(total.toString())} issues.`,
+  };
 }
