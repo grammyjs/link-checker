@@ -40,8 +40,8 @@ All links that doesn't follow this strict limit is listed below.`,
 The following links does not return any response (probably timed out). This could be a
 network issue, an internal server issue, or the page doesn't exist at all for some reason.`,
   "disallow_extension": `\
-Some local files seems to be linked with a prohibited extension. This should be changed
-to the correct extension.`,
+Some local files seems to be linked with extension, and the use of extensions while linking
+local documents are prohibited. Remove them.`,
 };
 
 function makePrettyDetails(issue: Issue) {
