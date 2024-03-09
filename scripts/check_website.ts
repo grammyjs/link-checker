@@ -8,15 +8,20 @@ import { parseLink } from "../utilities.ts";
 import { join } from "../deps/std/path.ts";
 import { yellow } from "../deps/std/fmt.ts";
 
-const REPO = { owner: "dcdunkan", repo: "website" };
 const env = getEnv("APP_ID", "INSTALLATION_ID", "PRIVATE_KEY", "DIR");
+
+const REPO = { owner: "dcdunkan", repo: "website" };
+await new Deno.Command("git", { args: ["clone", `https://github.com/${REPO.owner}/${REPO.repo}`] }).output();
+const dir = join(env.DIR, "website", "site", "docs");
+
 const app = new App({ appId: Number(env.APP_ID), privateKey: env.PRIVATE_KEY });
+const octokit = await app.getInstallationOctokit(Number(env.INSTALLATION_ID));
+
 const me = await app.octokit.request("GET /app");
 const LOGIN = me.data.slug + "[bot]";
-const octokit = await app.getInstallationOctokit(Number(env.INSTALLATION_ID));
-const dir = join(env.DIR, "site", "docs");
+
 const COMMIT_SHA = new TextDecoder().decode(
-  (await new Deno.Command("git", { args: ["rev-parse", "HEAD"], cwd: env.DIR }).output()).stdout,
+  (await new Deno.Command("git", { args: ["rev-parse", "HEAD"], cwd: dir }).output()).stdout,
 ).trim();
 const issues = await readMarkdownFiles(dir, {
   indexFile: "README.md",
