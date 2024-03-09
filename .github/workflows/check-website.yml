@@ -7,15 +7,16 @@ jobs:
   check-website:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+
       - name: Check the website source for broken links
         env:
           APP_ID: ${{ secrets.APP_ID }}
           INSTALLATION_ID: ${{ secrets.INSTALLATION_ID }}
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
           DIR: ${{ github.workspace }}
-      - uses: denoland/setup-deno@v1
-        with:
-          deno-version: v1.x
         run: deno run --allow-net --allow-env --allow-read scripts/check_website.ts 
