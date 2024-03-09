@@ -1,0 +1,17 @@
+name: Check website for broken links
+on:
+  schedule:
+    - cron: '0 0 * * *'
+jobs:
+  check-website:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - name: Check the website source for broken links
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+          INSTALLATION_ID: ${{ secrets.INSTALLATION_ID }}
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+          DIR: ${{ github.workspace }}
+        run: deno run --allow-net --allow-env --allow-read scripts/check_website.ts 
