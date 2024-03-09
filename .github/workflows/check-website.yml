@@ -15,4 +15,7 @@ jobs:
           INSTALLATION_ID: ${{ secrets.INSTALLATION_ID }}
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
           DIR: ${{ github.workspace }}
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
         run: deno run --allow-net --allow-env --allow-read scripts/check_website.ts 
