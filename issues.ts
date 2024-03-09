@@ -17,7 +17,7 @@ export const ISSUE_TITLES: Record<Issue["type"], string> = {
   linked_file_not_found: "Missing files",
 };
 
-const ISSUE_DESCRIPTIONS: Record<Issue["type"], string> = {
+export const ISSUE_DESCRIPTIONS: Record<Issue["type"], string> = {
   "unknown_link_format": `\
 The links highlighted in red seems to be an invalid type of link. Please check the source
 files and correct the hyperlinks involved. If you think this was a mistake, please open
@@ -81,7 +81,7 @@ ${bold(strikethrough(red(issue.extension)))}${anchor ? dim("#" + anchor) : ""}`;
   }
 }
 
-function getSearchString(issue: Issue) {
+export function getSearchString(issue: Issue) {
   switch (issue.type) {
     case "redirected":
       return `${issue.from}`;
@@ -116,14 +116,14 @@ function getColumns(haystack: string, needle: string) {
 }
 
 // little grep (my own impl.)
-async function findStringLocations(
+export async function findStringLocations(
   filepath: string,
   searchString: string,
-): Promise<[line: number, columns: number[] /*, text: string */][]> {
+): Promise<[line: number, columns: number[], text: string][]> {
   using file = await Deno.open(filepath, { read: true });
   let tempLine = "";
   let currentLine = 1;
-  const locations: [line: number, columns: number[] /*, text: string */][] = [];
+  const locations: [line: number, columns: number[], text: string][] = [];
   const decoder = new TextDecoder();
   for await (const chunk of file.readable) {
     const decodedChunk = decoder.decode(chunk);
@@ -131,14 +131,14 @@ async function findStringLocations(
     tempLine += lines.shift();
     if (lines.length <= 1) continue;
     if (tempLine.includes(searchString)) {
-      locations.push([currentLine, getColumns(tempLine, searchString) /*, tempLine */]);
+      locations.push([currentLine, getColumns(tempLine, searchString), tempLine]);
     }
     currentLine += 1;
     tempLine = lines.pop()!;
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (line.includes(searchString)) {
-        locations.push([currentLine, getColumns(line, searchString) /*, line */]);
+        locations.push([currentLine, getColumns(line, searchString), line]);
       }
       currentLine += 1;
     }
