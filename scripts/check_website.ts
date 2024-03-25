@@ -123,7 +123,7 @@ Please review the report below and close this issue once the fixes are made.
   for (const type of issueTypes.sort((a, b) => a.localeCompare(b))) {
     const title = ISSUE_TITLES[type];
     report += "\n\n### " + title + " (" + grouped[type].length + ")\n\n";
-    report += "> " + ISSUE_DESCRIPTIONS[type].split("\n").join(" ");
+    report += ISSUE_DESCRIPTIONS[type].split("\n").join(" ");
     report += "\n\n<details><summary>Show the issues</summary>";
     for (const { details, stack } of grouped[type]) {
       report += "\n\n";
