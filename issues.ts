@@ -3,6 +3,7 @@ import { Issue } from "./types.ts";
 import { parseLink } from "./utilities.ts";
 import { extname, resolve } from "./deps/std/path.ts";
 import { equal } from "./deps/std/assert.ts";
+import { getPossibleMatches } from "./utilities.ts";
 
 export const ISSUE_TITLES: Record<Issue["type"], string> = {
   empty_dom: "Empty DOM content",
@@ -62,11 +63,17 @@ ${bold(`${strikethrough(red(issue.actual))}${green(issue.expected)}`)}\
 ${anchor ? dim("#" + anchor) : ""}`;
     }
     case "linked_file_not_found":
-      return `${dim(red(issue.filepath))} (not found)`;
+      return `${dim(red(issue.reference))} (${yellow("path")}: ${issue.filepath})`;
     case "redirected":
       return `${underline(yellow(issue.from))} --> ${underline(green(issue.to))}`;
-    case "missing_anchor":
-      return `${underline(issue.reference)}${red(bold("#" + issue.anchor))}`;
+    case "missing_anchor": {
+      const { root } = parseLink(issue.reference);
+      const possible = getPossibleMatches(issue.anchor, issue.allAnchors);
+      return `${underline(root)}${red(bold("#" + issue.anchor))}` +
+        (possible.length
+          ? `\n${yellow("possible fix" + (possible.length > 1 ? "es" : ""))}: ${possible.map((match) => match).join(dim(", "))}`
+          : "");
+    }
     case "empty_anchor":
       return `${underline(issue.reference)}${red(bold("#"))}`;
     case "no_response":
@@ -74,7 +81,7 @@ ${anchor ? dim("#" + anchor) : ""}`;
     case "disallow_extension": {
       const { root, anchor } = parseLink(issue.reference);
       return `${root.slice(0, -extname(root).length)}\
-${bold(strikethrough(red(issue.extension)))}${anchor ? dim("#" + anchor) : ""}`;
+${bold(strikethrough(red("." + issue.extension)))}${anchor ? dim("#" + anchor) : ""}`;
     }
     default:
       throw new Error("Invalid type of issue! This shouldn't be happening.");
@@ -86,21 +93,13 @@ export function getSearchString(issue: Issue) {
     case "redirected":
       return `${issue.from}`;
     case "not_ok_response":
-      return `${issue.reference}`;
     case "no_response":
-      return `${issue.reference}`;
     case "missing_anchor":
-      return `${issue.reference}#${issue.anchor}`;
     case "empty_dom":
-      return `${issue.reference}`;
     case "disallow_extension":
-      return `${issue.reference}`;
     case "wrong_extension":
-      return `${issue.reference}`;
     case "linked_file_not_found":
-      return `${issue.filepath}`;
     case "unknown_link_format":
-      return `${issue.reference}`;
     case "empty_anchor":
       return `${issue.reference}`;
   }

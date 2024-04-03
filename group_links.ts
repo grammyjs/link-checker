@@ -201,7 +201,7 @@ export async function resolveGroupedLinks(
     if (anchor != null && anchors != null) { // it is already fetched.
       if (!anchors.has(anchor)) {
         resolved.githubRenderableFiles[repository].issues[branch][filepath].push(
-          { type: "missing_anchor", reference, anchor },
+          { type: "missing_anchor", reference, anchor, allAnchors: anchors },
         );
       }
       continue;
@@ -227,7 +227,7 @@ export async function resolveGroupedLinks(
     allAnchors.add("readme");
     if (anchor != null && !allAnchors.has(anchor)) {
       resolved.githubRenderableFiles[repository].issues[branch][filepath]
-        .push({ type: "missing_anchor", reference, anchor });
+        .push({ type: "missing_anchor", reference, anchor, allAnchors });
     }
 
     resolved.githubRenderableFiles[repository].anchors[branch] ??= {};

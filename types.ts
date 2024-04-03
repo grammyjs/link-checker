@@ -50,6 +50,7 @@ interface WrongExtensionIssue extends BaseIssue {
 interface LinkedFileNotFoundIssue {
   type: "linked_file_not_found";
   filepath: string;
+  reference: string;
 }
 interface RedirectedIssue {
   type: "redirected";
@@ -59,6 +60,7 @@ interface RedirectedIssue {
 interface MissingAnchorIssue extends BaseIssue {
   type: "missing_anchor";
   anchor: string;
+  allAnchors: Set<string>;
 }
 
 type ExternalLinkIssue =

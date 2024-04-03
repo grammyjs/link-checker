@@ -1,6 +1,7 @@
 import { DOMParser, HTMLDocument } from "./deps/deno_dom.ts";
 import { magenta, red } from "./deps/std/fmt.ts";
 import { MarkdownIt } from "./deps/markdown-it/mod.ts";
+import { distance } from "./deps/jaro-winkler.ts";
 
 import { ACCEPTABLE_NOT_OK_STATUS, getFetchWithRetries, isValidRedirection, MANUAL_REDIRECTIONS, transformURL } from "./fetch.ts";
 import type { ExternalLinkIssue, MarkdownItToken } from "./types.ts";
@@ -8,6 +9,7 @@ import type { ExternalLinkIssue, MarkdownItToken } from "./types.ts";
 const RETRY_FAILED_FETCH = true;
 const MAX_RETRIES = 5;
 const ID_TAGS = ["section", "h1", "h2", "h3", "h4", "h5", "h6", "div", "a"];
+const MINIMUM_DISTANCE = 0.9;
 
 export const fetchWithRetries = getFetchWithRetries(RETRY_FAILED_FETCH, MAX_RETRIES);
 
@@ -40,15 +42,16 @@ export function getAnchors(
   ]);
 }
 
-export function parseLink(href: string) {
+export function parseLink(href: string): { root: string; anchor?: string } {
   if (!URL.canParse(href)) { // looks like an local relative link
     const hashPos = href.lastIndexOf("#");
-    if (hashPos === -1) return { root: href, anchor: undefined };
-    return { root: href.substring(0, hashPos), anchor: href.substring(hashPos + 1) };
+    if (hashPos === -1) return { root: href };
+    return { root: href.substring(0, hashPos), anchor: decodeURIComponent(href.substring(hashPos + 1)) };
   }
   // not a relative link, hopefully external.
   const url = new URL(href);
-  const anchor = url.hash === "" ? undefined : url.hash.substring(1);
+  if (url.hash === "") return { root: url.href };
+  const anchor = decodeURIComponent(url.hash.substring(1));
   url.hash = "";
   return { root: url.href, anchor };
 }
@@ -109,4 +112,13 @@ export async function checkExternalUrl(url: string, utils: { domParser: DOMParse
     console.error(red("error:"), error);
     return { issues };
   }
+}
+
+export function getPossibleMatches(anchor: string, allAnchors: Set<string>) {
+  const matches: string[] = [];
+  for (const possible of allAnchors) {
+    const percent = distance(anchor.toLowerCase(), possible.toLowerCase());
+    if (percent >= MINIMUM_DISTANCE) matches.push(possible);
+  }
+  return matches;
 }
