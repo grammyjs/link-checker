@@ -1,4 +1,8 @@
-import { type ResponseInfo } from "./types.ts";
+import { DOMParser } from "./deps/deno_dom.ts";
+import { magenta, red } from "./deps/std/fmt.ts";
+
+import { ExternalLinkIssue, type ResponseInfo } from "./types.ts";
+import { fetchWithRetries, getAnchors } from "./utilities.ts";
 
 export const ACCEPTABLE_NOT_OK_STATUS: Record<string, number> = {
   "https://dash.cloudflare.com/login": 403,
@@ -156,4 +160,48 @@ export function isValidAnchor(all: Set<string>, url: string, anchor: string) {
     }
   }
   return false;
+}
+
+export async function checkExternalUrl(url: string, utils: { domParser: DOMParser }) {
+  const issues: ExternalLinkIssue[] = [];
+  const transformed = transformURL(url);
+  const { response, redirected, redirectedUrl } = await fetchWithRetries(transformed);
+
+  if (response == null) {
+    issues.push({ type: "no_response", reference: transformed });
+    return { issues };
+  }
+
+  if (redirected && MANUAL_REDIRECTIONS.includes(transformed)) {
+    return { issues };
+  }
+
+  if (redirected && !isValidRedirection(new URL(transformed), new URL(redirectedUrl))) {
+    issues.push({ type: "redirected", from: transformed, to: response.url });
+  }
+
+  if (!response.ok && ACCEPTABLE_NOT_OK_STATUS[url] !== response.status) {
+    issues.push({ type: "not_ok_response", reference: url, status: response.status, statusText: response.statusText });
+    console.log(red("not OK"), response.status, response.statusText);
+    return { issues };
+  }
+
+  const contentType = response.headers.get("content-type");
+  if (contentType == null) {
+    console.log(magenta("No Content-Type header was found in the response. Continuing anyway"));
+  } else if (!contentType.includes("text/html")) {
+    console.log(magenta(`Content-Type header is ${contentType}; continuing with HTML anyway`));
+  }
+
+  try {
+    const content = await response.text();
+    const document = utils.domParser.parseFromString(content, "text/html");
+    if (document == null) throw new Error("Failed to parse the webpage: skipping");
+    const anchors = getAnchors(document, { includeHref: true });
+    return { issues, anchors, document };
+  } catch (error) {
+    issues.push({ type: "empty_dom", reference: url });
+    console.error(red("error:"), error);
+    return { issues };
+  }
 }

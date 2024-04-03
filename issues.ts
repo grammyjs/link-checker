@@ -1,9 +1,9 @@
 import { bold, cyan, dim, green, red, strikethrough, underline, yellow } from "./deps/std/fmt.ts";
-import { Issue } from "./types.ts";
-import { parseLink } from "./utilities.ts";
 import { extname, resolve } from "./deps/std/path.ts";
 import { equal } from "./deps/std/assert.ts";
-import { getPossibleMatches } from "./utilities.ts";
+
+import { findStringLocations, getPossibleMatches, indentText, parseLink } from "./utilities.ts";
+import { Issue } from "./types.ts";
 
 export const ISSUE_TITLES: Record<Issue["type"], string> = {
   empty_dom: "Empty DOM content",
@@ -105,46 +105,6 @@ export function getSearchString(issue: Issue) {
   }
 }
 
-function getColumns(haystack: string, needle: string) {
-  const indices: number[] = [];
-  while (haystack.includes(needle)) {
-    const length = indices.push(haystack.indexOf(needle) + 1);
-    haystack = haystack.slice(indices[length - 1]);
-  }
-  return indices;
-}
-
-// little grep (my own impl.)
-export async function findStringLocations(
-  filepath: string,
-  searchString: string,
-): Promise<[line: number, columns: number[], text: string][]> {
-  using file = await Deno.open(filepath, { read: true });
-  let tempLine = "";
-  let currentLine = 1;
-  const locations: [line: number, columns: number[], text: string][] = [];
-  const decoder = new TextDecoder();
-  for await (const chunk of file.readable) {
-    const decodedChunk = decoder.decode(chunk);
-    const lines = decodedChunk.split("\n");
-    tempLine += lines.shift();
-    if (lines.length <= 1) continue;
-    if (tempLine.includes(searchString)) {
-      locations.push([currentLine, getColumns(tempLine, searchString), tempLine]);
-    }
-    currentLine += 1;
-    tempLine = lines.pop()!;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (line.includes(searchString)) {
-        locations.push([currentLine, getColumns(line, searchString), line]);
-      }
-      currentLine += 1;
-    }
-  }
-  return locations;
-}
-
 async function generateStackTrace(filepaths: string[], searchString: string) {
   return (await Promise.all(
     filepaths.sort((a, b) => a.localeCompare(b)).map(async (filepath) => {
@@ -163,11 +123,6 @@ information and context at: https://github.com/grammyjs/link-checker/issues/new.
       ).flat();
     }),
   )).flat().join("\n");
-}
-
-function indentText(text: string, indentSize: number) {
-  const indent = " ".repeat(indentSize);
-  return text.includes("\n") ? text.split("\n").map((line) => indent + line).join("\n") : indent + text;
 }
 
 export async function generateReport(issues: Record<string, Issue[]>) {

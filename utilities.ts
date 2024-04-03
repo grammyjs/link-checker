@@ -1,10 +1,9 @@
-import { DOMParser, HTMLDocument } from "./deps/deno_dom.ts";
-import { magenta, red } from "./deps/std/fmt.ts";
+import { HTMLDocument } from "./deps/deno_dom.ts";
 import { MarkdownIt } from "./deps/markdown-it/mod.ts";
 import { distance } from "./deps/jaro-winkler.ts";
 
-import { ACCEPTABLE_NOT_OK_STATUS, getFetchWithRetries, isValidRedirection, MANUAL_REDIRECTIONS, transformURL } from "./fetch.ts";
-import type { ExternalLinkIssue, MarkdownItToken } from "./types.ts";
+import { getFetchWithRetries } from "./fetch.ts";
+import type { MarkdownItToken } from "./types.ts";
 
 const RETRY_FAILED_FETCH = true;
 const MAX_RETRIES = 5;
@@ -70,50 +69,6 @@ function filterLinksFromTokens(tokens: MarkdownItToken[]) {
   return new Set(links);
 }
 
-export async function checkExternalUrl(url: string, utils: { domParser: DOMParser }) {
-  const issues: ExternalLinkIssue[] = [];
-  const transformed = transformURL(url);
-  const { response, redirected, redirectedUrl } = await fetchWithRetries(transformed);
-
-  if (response == null) {
-    issues.push({ type: "no_response", reference: transformed });
-    return { issues };
-  }
-
-  if (redirected && MANUAL_REDIRECTIONS.includes(transformed)) {
-    return { issues };
-  }
-
-  if (redirected && !isValidRedirection(new URL(transformed), new URL(redirectedUrl))) {
-    issues.push({ type: "redirected", from: transformed, to: response.url });
-  }
-
-  if (!response.ok && ACCEPTABLE_NOT_OK_STATUS[url] !== response.status) {
-    issues.push({ type: "not_ok_response", reference: url, status: response.status, statusText: response.statusText });
-    console.log(red("not OK"), response.status, response.statusText);
-    return { issues };
-  }
-
-  const contentType = response.headers.get("content-type");
-  if (contentType == null) {
-    console.log(magenta("No Content-Type header was found in the response. Continuing anyway"));
-  } else if (!contentType.includes("text/html")) {
-    console.log(magenta(`Content-Type header is ${contentType}; continuing with HTML anyway`));
-  }
-
-  try {
-    const content = await response.text();
-    const document = utils.domParser.parseFromString(content, "text/html");
-    if (document == null) throw new Error("Failed to parse the webpage: skipping");
-    const anchors = getAnchors(document, { includeHref: true });
-    return { issues, anchors, document };
-  } catch (error) {
-    issues.push({ type: "empty_dom", reference: url });
-    console.error(red("error:"), error);
-    return { issues };
-  }
-}
-
 export function getPossibleMatches(anchor: string, allAnchors: Set<string>) {
   const matches: string[] = [];
   for (const possible of allAnchors) {
@@ -121,4 +76,49 @@ export function getPossibleMatches(anchor: string, allAnchors: Set<string>) {
     if (percent >= MINIMUM_DISTANCE) matches.push(possible);
   }
   return matches;
+}
+
+function getColumns(haystack: string, needle: string) {
+  const indices: number[] = [];
+  while (haystack.includes(needle)) {
+    const length = indices.push(haystack.indexOf(needle) + 1);
+    haystack = haystack.slice(indices[length - 1]);
+  }
+  return indices;
+}
+
+// little grep (my own impl.)
+export async function findStringLocations(
+  filepath: string,
+  searchString: string,
+): Promise<[line: number, columns: number[], text: string][]> {
+  using file = await Deno.open(filepath, { read: true });
+  let tempLine = "";
+  let currentLine = 1;
+  const locations: [line: number, columns: number[], text: string][] = [];
+  const decoder = new TextDecoder();
+  for await (const chunk of file.readable) {
+    const decodedChunk = decoder.decode(chunk);
+    const lines = decodedChunk.split("\n");
+    tempLine += lines.shift();
+    if (lines.length <= 1) continue;
+    if (tempLine.includes(searchString)) {
+      locations.push([currentLine, getColumns(tempLine, searchString), tempLine]);
+    }
+    currentLine += 1;
+    tempLine = lines.pop()!;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.includes(searchString)) {
+        locations.push([currentLine, getColumns(line, searchString), line]);
+      }
+      currentLine += 1;
+    }
+  }
+  return locations;
+}
+
+export function indentText(text: string, indentSize: number) {
+  const indent = " ".repeat(indentSize);
+  return text.includes("\n") ? text.split("\n").map((line) => indent + line).join("\n") : indent + text;
 }

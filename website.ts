@@ -5,9 +5,9 @@ import { slugifyPlugin } from "./deps/markdown-it/slugify.ts";
 import { extname, join, relative, resolve } from "./deps/std/path.ts";
 import { blue, dim, magenta } from "./deps/std/fmt.ts";
 
-import { isValidAnchor, transformURL } from "./fetch.ts";
+import { checkExternalUrl, isValidAnchor, transformURL } from "./fetch.ts";
 import { Issue, MissingAnchorIssue } from "./types.ts";
-import { checkExternalUrl, getAnchors, parseLink, parseMarkdownContent } from "./utilities.ts";
+import { getAnchors, parseLink, parseMarkdownContent } from "./utilities.ts";
 import { findGroupedLinksIssues, GroupedLinksResolved, groupLinks, resolveGroupedLinks } from "./group_links.ts";
 
 const domParser = new DOMParser();
