@@ -8,7 +8,7 @@ import type { MarkdownItToken } from "./types.ts";
 const RETRY_FAILED_FETCH = true;
 const MAX_RETRIES = 5;
 const ID_TAGS = ["section", "h1", "h2", "h3", "h4", "h5", "h6", "div", "a"];
-const MINIMUM_DISTANCE = 0.9;
+const MINIMUM_DISTANCE = 0.8;
 
 export const fetchWithRetries = getFetchWithRetries(RETRY_FAILED_FETCH, MAX_RETRIES);
 
