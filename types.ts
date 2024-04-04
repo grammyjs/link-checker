@@ -15,6 +15,7 @@ export const ISSUE_TYPES = [
   "linked_file_not_found",
   "redirected",
   "missing_anchor",
+  "local_alt_available",
 ] as const;
 
 interface BaseIssue {
@@ -62,13 +63,19 @@ interface MissingAnchorIssue extends BaseIssue {
   anchor: string;
   allAnchors: Set<string>;
 }
+interface PreferLocalLinkIssue extends BaseIssue {
+  type: "local_alt_available";
+  reference: string;
+  reason: string;
+}
 
 type ExternalLinkIssue =
   | RedirectedIssue
   | NotOKResponseIssue
   | NoResponseIssue
   | MissingAnchorIssue
-  | EmptyDOMIssue;
+  | EmptyDOMIssue
+  | PreferLocalLinkIssue;
 
 type Issue =
   | ExternalLinkIssue

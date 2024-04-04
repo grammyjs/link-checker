@@ -1,12 +1,12 @@
-import { App } from "https://esm.sh/@octokit/app@14.0.2?dts";
-import { readMarkdownFiles } from "../website.ts";
-import { findStringLocations, getSearchString, ISSUE_DESCRIPTIONS, ISSUE_TITLES } from "../issues.ts";
-import { Issue } from "../types.ts";
+import { App } from "../deps/octokit_app.ts";
 import { equal } from "../deps/std/assert.ts";
-import { relative } from "https://deno.land/std@0.219.1/path/posix/relative.ts";
-import { getPossibleMatches, parseLink } from "../utilities.ts";
-import { join } from "../deps/std/path.ts";
+import { join, relative } from "../deps/std/path.ts";
 import { yellow } from "../deps/std/fmt.ts";
+
+import { readMarkdownFiles } from "../website.ts";
+import { getSearchString, ISSUE_DESCRIPTIONS, ISSUE_TITLES } from "../issues.ts";
+import { findStringLocations, getEnv, getPossibleMatches, parseLink } from "../utilities.ts";
+import { Issue } from "../types.ts";
 
 const env = getEnv("APP_ID", "INSTALLATION_ID", "PRIVATE_KEY", "DIR");
 
@@ -175,15 +175,9 @@ function makePrettyDetails(issue: Issue) {
       const anchorText = anchor ? "#" + anchor : "";
       return `Omit the extension \`${issue.extension}\` from \`${root}${anchorText}\``;
     }
+    case "local_alt_available":
+      return `${issue.reference}\n\n${issue.reason}`;
     default:
       throw new Error("Invalid type of issue! This shouldn't be happening.");
   }
-}
-
-function getEnv<T extends string>(...vars: T[]) {
-  return vars.reduce((result, variable): Record<T, string> => {
-    const value = Deno.env.get(variable);
-    if (value == null) throw new Error("Missing env var: " + variable);
-    return { ...result, [variable]: value };
-  }, {} as Record<T, string>);
 }

@@ -16,33 +16,37 @@ export const ISSUE_TITLES: Record<Issue["type"], string> = {
   disallow_extension: "Disallowed extensions",
   unknown_link_format: "Unknown link type",
   linked_file_not_found: "Missing files",
+  local_alt_available: "Local alternative available",
 };
 
 export const ISSUE_DESCRIPTIONS: Record<Issue["type"], string> = {
-  "unknown_link_format": `\
+  unknown_link_format: `\
 The links highlighted in red seems to be an invalid type of link. Please check the source
 files and correct the hyperlinks involved. If you think this was a mistake, please open
 an issue over about this here: https://github.com/grammyjs/link-checker/issues/new.`,
-  "empty_dom": `\
+  empty_dom: `\
 The HTML document returned by the request couldn't be parsed properly by the HTML parser used.
 Either the request returned nothing, or it was an invalid type of content. This issue must be
 investigated and the links should be updated accordingly.`,
-  "not_ok_response": `\
+  not_ok_response: `\
 The following highlighted links returned documents with non-OK response status codes.
 The corresponding non-OK status codes are provided with them.`,
-  "wrong_extension": `\
+  wrong_extension: `\
 Local relative links to another file shouldn't be ending with an extension as configured.
 All links that doesn't follow this strict limit is listed below.`,
-  "linked_file_not_found": `The files linked do not exist at the given paths.`,
-  "redirected": `The links were redirected to a newer page or some other page according to the responses.`,
-  "missing_anchor": `Some links were pinned with an anchor. But the linked document doesn't have such an anchor.`,
-  "empty_anchor": `Restricts linking pages with no anchor destination. In other words, just '#'.`,
-  "no_response": `\
+  linked_file_not_found: `The files linked do not exist at the given paths.`,
+  redirected: `The links were redirected to a newer page or some other page according to the responses.`,
+  missing_anchor: `Some links were pinned with an anchor. But the linked document doesn't have such an anchor.`,
+  empty_anchor: `Restricts linking pages with no anchor destination. In other words, just '#'.`,
+  no_response: `\
 The following links does not return any response (probably timed out). This could be a
 network issue, an internal server issue, or the page doesn't exist at all for some reason.`,
-  "disallow_extension": `\
+  disallow_extension: `\
 Some local files seems to be linked with extension, and the use of extensions while linking
 local documents is prohibited. Remove the following extensions.`,
+  local_alt_available: `\
+There are local alternatives available for the following links, and they should be replaced
+with the local alternatives.`,
 };
 
 function makePrettyDetails(issue: Issue) {
@@ -83,6 +87,8 @@ ${anchor ? dim("#" + anchor) : ""}`;
       return `${root.slice(0, -extname(root).length)}\
 ${bold(strikethrough(red("." + issue.extension)))}${anchor ? dim("#" + anchor) : ""}`;
     }
+    case "local_alt_available":
+      return `${cyan(issue.reference)}\n${issue.reason}`;
     default:
       throw new Error("Invalid type of issue! This shouldn't be happening.");
   }
@@ -101,6 +107,7 @@ export function getSearchString(issue: Issue) {
     case "linked_file_not_found":
     case "unknown_link_format":
     case "empty_anchor":
+    case "local_alt_available":
       return `${issue.reference}`;
   }
 }

@@ -119,6 +119,17 @@ export async function readMarkdownFiles(
           issues[filepath].push(...externalLinkIssues[root]);
         }
 
+        // Force to use new API references
+        const url = new URL(root);
+        if (url.host === "deno.land" && /\/x\/grammy[a-z0-9_]*@?\/.+/.test(url.pathname)) {
+          issues[filepath] ??= [];
+          issues[filepath].push({
+            type: "local_alt_available",
+            reference: externalLink,
+            reason: "Replace the remote API reference link with the native API reference.",
+          });
+        }
+
         if (usedAnchors[root] != null) {
           usedAnchors[root][filepath] ??= new Set();
           if (anchor != null) {

@@ -16,6 +16,7 @@ import { DOMParser } from "./deps/deno_dom.ts";
 import { blue, dim, yellow } from "./deps/std/fmt.ts";
 
 import { ExternalLinkIssue } from "./types.ts";
+import { getEnv } from "./utilities.ts";
 import { fetchWithRetries, getAnchors, parseLink } from "./utilities.ts";
 
 interface GroupedLinks {
@@ -44,8 +45,10 @@ export interface GroupedLinksResolved {
 // worry about hitting rate limits. ceil(N=branches / 100) API calls per each
 // repository for getting all branches, and one for each file mentioned.
 
-const GITHUB_API_ROOT = "https://api.github.com";
-const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
+const {
+  GITHUB_API_ROOT = "https://api.github.com",
+  GITHUB_TOKEN,
+} = getEnv("GITHUB_API_ROOT", "GITHUB_TOKEN");
 if (GITHUB_TOKEN == null) {
   console.info(
     `\n┃ ${yellow("Gentle reminder")}: It is recommended to set the GITHUB_TOKEN environment variable
