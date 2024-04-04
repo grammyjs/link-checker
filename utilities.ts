@@ -130,3 +130,12 @@ export function getEnv<T extends string>(...vars: T[]) {
     return { ...result, [variable]: value };
   }, {} as Record<T, string>);
 }
+
+export function execute(command: string[], options?: Omit<Deno.CommandOptions, "args">) {
+  return new Deno.Command(command[0], { ...options, args: command.slice(1) });
+}
+
+export async function getCommitSha(repository: string) {
+  const output = (await execute(["git", "rev-parse", "HEAD"], { cwd: repository }).output()).stdout;
+  return new TextDecoder().decode(output).trim();
+}

@@ -5,13 +5,13 @@ import { yellow } from "../deps/std/fmt.ts";
 
 import { readMarkdownFiles } from "../website.ts";
 import { getSearchString, ISSUE_DESCRIPTIONS, ISSUE_TITLES } from "../issues.ts";
-import { findStringLocations, getEnv, getPossibleMatches, parseLink } from "../utilities.ts";
+import { execute, findStringLocations, getCommitSha, getEnv, getPossibleMatches, parseLink } from "../utilities.ts";
 import { Issue } from "../types.ts";
 
 const env = getEnv("APP_ID", "INSTALLATION_ID", "PRIVATE_KEY", "DIR");
 
 const REPO = { owner: "dcdunkan", repo: "website" };
-await new Deno.Command("git", { args: ["clone", `https://github.com/${REPO.owner}/${REPO.repo}`] }).output();
+await execute(["git", "clone", `https://github.com/${REPO.owner}/${REPO.repo}`]).output();
 const dir = join(env.DIR, "website", "site", "docs");
 
 const app = new App({ appId: Number(env.APP_ID), privateKey: env.PRIVATE_KEY });
@@ -20,9 +20,7 @@ const octokit = await app.getInstallationOctokit(Number(env.INSTALLATION_ID));
 const me = await app.octokit.request("GET /app");
 const LOGIN = me.data.slug + "[bot]";
 
-const COMMIT_SHA = new TextDecoder().decode(
-  (await new Deno.Command("git", { args: ["rev-parse", "HEAD"], cwd: dir }).output()).stdout,
-).trim();
+const COMMIT_SHA = getCommitSha(dir);
 const issues = await readMarkdownFiles(dir, {
   indexFile: "README.md",
   isCleanUrl: true,
