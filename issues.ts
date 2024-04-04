@@ -1,9 +1,8 @@
-import { bold, cyan, dim, green, red, strikethrough, underline, yellow } from "./deps/std/fmt.ts";
-import { extname, resolve } from "./deps/std/path.ts";
+import { yellow } from "./deps/std/fmt.ts";
 import { equal } from "./deps/std/assert.ts";
 
-import { findStringLocations, getPossibleMatches, indentText, parseLink } from "./utilities.ts";
-import { Issue } from "./types.ts";
+import { findStringLocations } from "./utilities.ts";
+import { Issue, Stack } from "./types.ts";
 
 export const ISSUE_TITLES: Record<Issue["type"], string> = {
   empty_dom: "Empty DOM content",
@@ -49,51 +48,6 @@ There are local alternatives available for the following links, and they should 
 with the local alternatives.`,
 };
 
-function makePrettyDetails(issue: Issue) {
-  if ("reference" in issue) issue.reference = decodeURI(issue.reference);
-  if ("to" in issue) issue.to = decodeURI(issue.to), issue.from = decodeURI(issue.from);
-
-  switch (issue.type) {
-    case "unknown_link_format":
-      return `${underline(red(issue.reference))}`;
-    case "empty_dom":
-      return `${underline(red(issue.reference))}`;
-    case "not_ok_response":
-      return `[${red(issue.status.toString())}] ${underline(issue.reference)}`; // TODO: show issue.statusText
-    case "wrong_extension": {
-      const { root, anchor } = parseLink(issue.reference);
-      return `${root.slice(0, -extname(root).length)}\
-${bold(`${strikethrough(red(issue.actual))}${green(issue.expected)}`)}\
-${anchor ? dim("#" + anchor) : ""}`;
-    }
-    case "linked_file_not_found":
-      return `${dim(red(issue.reference))} (${yellow("path")}: ${issue.filepath})`;
-    case "redirected":
-      return `${underline(yellow(issue.from))} --> ${underline(green(issue.to))}`;
-    case "missing_anchor": {
-      const { root } = parseLink(issue.reference);
-      const possible = getPossibleMatches(issue.anchor, issue.allAnchors);
-      return `${underline(root)}${red(bold("#" + issue.anchor))}` +
-        (possible.length
-          ? `\n${yellow("possible fix" + (possible.length > 1 ? "es" : ""))}: ${possible.map((match) => match).join(dim(", "))}`
-          : "");
-    }
-    case "empty_anchor":
-      return `${underline(issue.reference)}${red(bold("#"))}`;
-    case "no_response":
-      return `${underline(issue.reference)}`;
-    case "disallow_extension": {
-      const { root, anchor } = parseLink(issue.reference);
-      return `${root.slice(0, -extname(root).length)}\
-${bold(strikethrough(red("." + issue.extension)))}${anchor ? dim("#" + anchor) : ""}`;
-    }
-    case "local_alt_available":
-      return `${cyan(issue.reference)}\n${issue.reason}`;
-    default:
-      throw new Error("Invalid type of issue! This shouldn't be happening.");
-  }
-}
-
 export function getSearchString(issue: Issue) {
   switch (issue.type) {
     case "redirected":
@@ -112,62 +66,35 @@ export function getSearchString(issue: Issue) {
   }
 }
 
-async function generateStackTrace(filepaths: string[], searchString: string) {
+// Group, find occurrences in files, etc.
+export async function processIssues(issues: Record<string, Issue[]>) {
   return (await Promise.all(
-    filepaths.sort((a, b) => a.localeCompare(b)).map(async (filepath) => {
-      const locations = await findStringLocations(filepath, searchString);
-      if (locations.length == 0) {
-        console.error(yellow(`\
+    Object.entries(issues)
+      .map(([filepath, issues]) => issues.map((issue) => ({ filepath, issue }))).flat()
+      .reduce((deduped, current) => {
+        const alreadyDeduped = deduped.find((issue) => equal(current.issue, issue.details));
+        if (alreadyDeduped == null) return deduped.concat({ details: current.issue, filepaths: [current.filepath] });
+        alreadyDeduped.filepaths.push(current.filepath);
+        return deduped;
+      }, [] as { details: Issue; filepaths: string[] }[])
+      .map(async (issue) => {
+        const stack = issue.filepaths.sort((a, b) => a.localeCompare(b)).map(async (filepath) => {
+          const locations = await findStringLocations(filepath, getSearchString(issue.details));
+          if (locations.length == 0) {
+            console.error(yellow(`\
 ====================================================================================
 PANIK. This shouldn't be happening. The search strings are supposed to have at least
 one occurrence in the corresponding file. Please report this issue with enough
 information and context at: https://github.com/grammyjs/link-checker/issues/new.
 ====================================================================================`));
-        return [];
-      }
-      return locations.map(([lineNumber, columns]) =>
-        columns.map((column) => `at ${cyan(resolve(filepath))}:${yellow(lineNumber.toString())}:${yellow(column.toString())}`)
-      ).flat();
-    }),
-  )).flat().join("\n");
-}
-
-export async function generateReport(issues: Record<string, Issue[]>) {
-  if (Object.keys(issues).length === 0) {
-    return { total: 0, report: green("Found no issues with links in the documentation!") };
-  }
-  const grouped = Object.entries(issues).map(([filepath, issues]) => {
-    return issues.map((issue) => ({ filepath, issue }));
-  }).flat().reduce((deduped, current) => {
-    const alreadyDeduped = deduped.find((x) => equal(current.issue, x.details));
-    if (alreadyDeduped == null) return deduped.concat({ details: current.issue, stack: [current.filepath] });
-    alreadyDeduped.stack.push(current.filepath);
-    return deduped;
-  }, [] as { details: Issue; stack: string[] }[]).reduce((grouped, issue) => {
-    grouped[issue.details.type] ??= [];
-    grouped[issue.details.type].push(issue);
+          }
+          return { filepath, locations: locations.map(([line, columns]) => ({ line, columns })) };
+        });
+        return { ...issue.details, stack: await Promise.all(stack) };
+      }),
+  )).reduce((grouped, issue) => {
+    grouped[issue.type] ??= [];
+    grouped[issue.type].push(issue);
     return grouped;
-  }, {} as Record<Issue["type"], { details: Issue; stack: string[] }[]>);
-
-  let report = "", total = 0;
-  const issueTypes = Object.keys(grouped) as Issue["type"][];
-  for (const type of issueTypes) {
-    const title = ISSUE_TITLES[type];
-    report += "\n" + bold(title) + " (" + grouped[type].length + ")\n";
-    report += ISSUE_DESCRIPTIONS[type];
-    for (const { details, stack } of grouped[type]) {
-      report += "\n\n";
-      report += indentText(makePrettyDetails(details), 1);
-      const stackTrace = await generateStackTrace(stack, getSearchString(details));
-      report += "\n" + indentText(stackTrace, 4);
-    }
-    report += "\n";
-    total += grouped[type].length;
-  }
-
-  return {
-    total,
-    report: "\n" + red(bold(`Found ${total} issues across the documentation:`)) + "\n" + report +
-      `\nChecking completed and found ${bold(total.toString())} issues.`,
-  };
+  }, {} as Record<Issue["type"], (Issue & { stack: Stack[] })[]>);
 }

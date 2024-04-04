@@ -1,14 +1,13 @@
 import { App } from "../deps/octokit_app.ts";
-import { equal } from "../deps/std/assert.ts";
 import { join, relative } from "../deps/std/path.ts";
-import { yellow } from "../deps/std/fmt.ts";
 
 import { readMarkdownFiles } from "../website.ts";
-import { getSearchString, ISSUE_DESCRIPTIONS, ISSUE_TITLES } from "../issues.ts";
-import { execute, findStringLocations, getCommitSha, getEnv, getPossibleMatches, parseLink } from "../utilities.ts";
-import { Issue } from "../types.ts";
+import { ISSUE_DESCRIPTIONS, ISSUE_TITLES } from "../issues.ts";
+import { execute, getCommitSha, getEnv, getPossibleMatches, parseLink } from "../utilities.ts";
+import { Issue, Stack } from "../types.ts";
+import { processIssues } from "../issues.ts";
 
-const env = getEnv("APP_ID", "INSTALLATION_ID", "PRIVATE_KEY", "DIR");
+const env = getEnv(false, "APP_ID", "INSTALLATION_ID", "PRIVATE_KEY", "DIR");
 
 const REPO = { owner: "dcdunkan", repo: "website" };
 await execute(["git", "clone", `https://github.com/${REPO.owner}/${REPO.repo}`]).output();
@@ -66,30 +65,15 @@ async function updateIssue(number: number, body: string) {
   return res.status === 200;
 }
 
-async function generateStackTrace(filepaths: string[], searchString: string) {
-  return (await Promise.all(
-    filepaths.sort((a, b) => a.localeCompare(b)).map(async (filepath) => {
-      const locations = await findStringLocations(filepath, searchString);
-      if (locations.length == 0) {
-        console.error(yellow(`\
-====================================================================================
-PANIK. This shouldn't be happening. The search strings are supposed to have at least
-one occurrence in the corresponding file. Please report this issue with enough
-information and context at: https://github.com/grammyjs/link-checker/issues/new.
-====================================================================================`));
-        return [];
-      }
-      return locations.map(([lineNumber, columns]) =>
-        columns.map((column) =>
-          `- <samp>**${
-            relative(dir, filepath)
-          }**:${lineNumber}:${column} [[src](https://github.com/${REPO.owner}/${REPO.repo}/blob/${COMMIT_SHA}/${
-            relative(dir, filepath)
-          }?plain=1#L${lineNumber}C${column})]</samp>`
-        )
-      ).flat();
-    }),
-  )).flat().join("\n");
+function generateStackTrace(stacktrace: Stack[]) {
+  return stacktrace.map((stack) =>
+    stack.locations.map((location) =>
+      location.columns.map((column) => {
+        const path = relative(dir, stack.filepath);
+        return `- <samp>**${path}**:${location.line}:${column} [[src](https://github.com/${REPO.owner}/${REPO.repo}/blob/${COMMIT_SHA}/${path}?plain=1#L${location.line}C${column})]</samp>`;
+      })
+    ).flat()
+  ).flat().join("\n");
 }
 
 function indentText(text: string, indentSize: number) {
@@ -98,18 +82,7 @@ function indentText(text: string, indentSize: number) {
 }
 
 export async function generateReport(issues: Record<string, Issue[]>) {
-  const grouped = Object.entries(issues).map(([filepath, issues]) => {
-    return issues.map((issue) => ({ filepath, issue }));
-  }).flat().reduce((deduped, current) => {
-    const alreadyDeduped = deduped.find((x) => equal(current.issue, x.details));
-    if (alreadyDeduped == null) return deduped.concat({ details: current.issue, stack: [current.filepath] });
-    alreadyDeduped.stack.push(current.filepath);
-    return deduped;
-  }, [] as { details: Issue; stack: string[] }[]).reduce((grouped, issue) => {
-    grouped[issue.details.type] ??= [];
-    grouped[issue.details.type].push(issue);
-    return grouped;
-  }, {} as Record<Issue["type"], { details: Issue; stack: string[] }[]>);
+  const grouped = await processIssues(issues);
 
   let report = `\
 This issue contains the details regarding few broken links in the documentation. \
@@ -123,11 +96,10 @@ Please review the report below and close this issue once the fixes are made.
     report += "### " + title + " (" + grouped[type].length + ")\n\n";
     report += ISSUE_DESCRIPTIONS[type].split("\n").join(" ");
     report += "\n\n<details><summary>Show the issues</summary>";
-    for (const { details, stack } of grouped[type]) {
+    for (const { stack, ...details } of grouped[type]) {
       report += "\n\n";
       report += "- [ ] " + makePrettyDetails(details);
-      const stackTrace = await generateStackTrace(stack, getSearchString(details));
-      report += "\n\n" + indentText(stackTrace, 5);
+      report += "\n\n" + indentText(generateStackTrace(stack), 5);
     }
     report += "\n</details>\n";
     total += grouped[type].length;

@@ -123,10 +123,10 @@ export function indentText(text: string, indentSize: number) {
   return text.includes("\n") ? text.split("\n").map((line) => indent + line).join("\n") : indent + text;
 }
 
-export function getEnv<T extends string>(...vars: T[]) {
+export function getEnv<T extends string>(optional: boolean, ...vars: T[]) {
   return vars.reduce((result, variable): Record<T, string> => {
     const value = Deno.env.get(variable);
-    if (value == null) throw new Error("Missing env var: " + variable);
+    if (!optional && value == null) throw new Error("Missing env var: " + variable);
     return { ...result, [variable]: value };
   }, {} as Record<T, string>);
 }

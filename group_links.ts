@@ -48,7 +48,7 @@ export interface GroupedLinksResolved {
 const {
   GITHUB_API_ROOT = "https://api.github.com",
   GITHUB_TOKEN,
-} = getEnv("GITHUB_API_ROOT", "GITHUB_TOKEN");
+} = getEnv(true, "GITHUB_API_ROOT", "GITHUB_TOKEN");
 if (GITHUB_TOKEN == null) {
   console.info(
     `\n┃ ${yellow("Gentle reminder")}: It is recommended to set the GITHUB_TOKEN environment variable

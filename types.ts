@@ -91,4 +91,6 @@ interface ResponseInfo {
   redirectedUrl: string; // may become useful later.
 }
 
-export type { ExternalLinkIssue, Issue, MarkdownItToken, MissingAnchorIssue, ResponseInfo };
+type Stack = { filepath: string; locations: { line: number; columns: number[] }[] };
+
+export type { ExternalLinkIssue, Issue, MarkdownItToken, MissingAnchorIssue, ResponseInfo, Stack };
