@@ -1,14 +1,16 @@
-import { parseArgs } from "./deps/std/cli.ts";
-import { bold, cyan, dim, green, red, strikethrough, underline, yellow } from "./deps/std/fmt.ts";
+import { parse, stringify } from "./deps/oson.ts";
+import { parseArgs, Spinner } from "./deps/std/cli.ts";
+import { blue, bold, cyan, dim, green, red, strikethrough, underline, yellow } from "./deps/std/fmt.ts";
 import { extname, resolve } from "./deps/std/path.ts";
 
 import { ISSUE_DESCRIPTIONS, ISSUE_TITLES, processIssues } from "./issues.ts";
+import { FixableIssue } from "./types.ts";
 import { Issue, Stack } from "./types.ts";
 import { getPossibleMatches, indentText, parseLink } from "./utilities.ts";
 import { readMarkdownFiles } from "./website.ts";
 
 const args = parseArgs(Deno.args, {
-  boolean: ["clean-url", "allow-ext-html"],
+  boolean: ["clean-url", "allow-ext-html", "fix"],
   string: ["index-file"],
   default: {
     "index-file": "README.md",
@@ -20,20 +22,170 @@ if (args._.length > 1) {
   console.log("Multiple directories were specified. Ignoring everything except the first one.");
 }
 
-const ROOT_DIRECTORY = (args._[0] ?? ".").toString();
+const rootDirectory = (args._[0] ?? ".").toString();
 
-console.log("Reading files and checking for bad links...");
+if (args.fix) {
+  console.warn(
+    "%c| %cNote%c: You have specified the --fix argument. This will fix all the issues this tool can fix.\n",
+    "font-weight: bold",
+    "color: orange",
+    "color: none",
+  );
+}
 
-const issues = await readMarkdownFiles(ROOT_DIRECTORY, {
-  isCleanUrl: args["clean-url"],
-  indexFile: args["index-file"],
-  allowHtmlExtension: args["allow-ext-html"],
-});
+const FIXABLE_ISSUE_TYPES = ["redirected", "missing_anchor", "empty_anchor", "wrong_extension", "disallow_extension"];
 
-const { report } = await generateReport(issues);
-console.log(report);
+let issues: Record<string, Issue[]> = {};
+if (Deno.env.get("DEBUG") != null) {
+  console.log("=== DEBUGGING MODE ===");
+  try {
+    console.log("reading the cache file");
+    issues = parse(await Deno.readTextFile("./link-checker"));
+  } catch (_error) {
+    console.log("failed to read the cache file");
+    issues = await getIssues();
+    await Deno.writeTextFile("./link-checker", stringify(issues));
+    console.log("cache file created and will be used next time debugging");
+  }
+  console.log("======================");
+} else {
+  console.log("Reading files and checking for bad links...");
+  issues = await getIssues();
+}
+
+if (Object.keys(issues).length === 0) {
+  console.log(green("Found no issues with links in the documentation!"));
+  Deno.exit(0);
+}
+
+function isFixableIssueType(type: Issue["type"]): type is FixableIssue["type"] {
+  return FIXABLE_ISSUE_TYPES.includes(type);
+}
+
+const grouped = await processIssues(issues);
+const getIssueTypes = () => Object.keys(grouped) as Issue["type"][];
+const getTotal = () => getIssueTypes().reduce((total, type) => total + grouped[type].length, 0);
+
+const initial = getTotal();
+console.log("\n" + red(bold(`Found ${initial} issues across the documentation:`)));
+
+let totalPlaces = 0, fixed = 0;
+
+if (args.fix) {
+  console.log(blue("note:"), "--fix was specified. trying to fix fixable issues...");
+  const spinner = new Spinner({ message: "fixing issues..." });
+  spinner.start();
+
+  let fixesMadeThisRound: number, round = 1;
+  do {
+    fixesMadeThisRound = 0;
+    spinner.message = `fixing: round ${round++}`;
+
+    for (const type of getIssueTypes()) {
+      if (!isFixableIssueType(type)) continue;
+      spinner.message = `fixing ${ISSUE_TITLES[type]} issues (${grouped[type].length})...`;
+
+      const groupLength = grouped[type].length;
+      let issueCount = 0;
+      for (let i = 0; issueCount < groupLength; i++, issueCount++) {
+        const issue = grouped[type][i];
+        totalPlaces += issue.stack.length;
+
+        const fixStrings = getFixedString(issue);
+        if (fixStrings == null) {
+          spinner.message = `(${issueCount}/${groupLength}) skipped: no fix available`;
+          continue;
+        }
+
+        const stackLength = grouped[type][i].stack.length;
+        const fixedPlaces = new Set<string>();
+
+        if (grouped[type][i].stack.length != 0) {
+          spinner.message = `(${issueCount}/${groupLength}) fixing...`;
+        }
+
+        // Fix all occurrences
+        for (let stackCount = 1; stackCount <= stackLength; stackCount++) {
+          const stack = grouped[type][i].stack[0];
+          const content = await Deno.readTextFile(stack.filepath);
+          await Deno.writeTextFile(stack.filepath, content.replaceAll(fixStrings[0], fixStrings[1]));
+          grouped[type][i].stack.splice(0, 1);
+          spinner.message = `(${issueCount}/${groupLength}): ${stack.filepath}`;
+          fixesMadeThisRound++;
+        }
+
+        // All occurrences were fixed, no use keeping the issue in accounts now.
+        if (grouped[type][i].stack.length == 0) {
+          grouped[type].splice(i--, 1);
+          spinner.message = `(${issueCount}/${groupLength}) fixed`;
+        }
+
+        spinner.message = "updating references...";
+        // Update all related issues with same references
+        for (const type of getIssueTypes()) {
+          for (const issue of grouped[type]) {
+            if (!isFixableIssueType(issue.type)) break;
+            if (issue.stack.some(({ filepath }) => !fixedPlaces.has(filepath))) continue;
+            switch (issue.type) {
+              case "redirected":
+                issue.from = issue.from.replace(fixStrings[0], fixStrings[1]);
+                break;
+              case "empty_anchor":
+              case "missing_anchor":
+              case "disallow_extension":
+              case "wrong_extension":
+                issue.reference = issue.reference.replace(fixStrings[0], fixStrings[1]);
+                break;
+            }
+          }
+        }
+      }
+
+      if (groupLength - grouped[type].length > 0) {
+        spinner.stop();
+        console.log(green("fixed"), `${groupLength - grouped[type].length} of ${groupLength} ${ISSUE_TITLES[type]} issues`);
+        spinner.start();
+      }
+
+      // No issues left in this group
+      if (grouped[type].length == 0) delete grouped[type];
+
+      fixed += fixesMadeThisRound;
+    }
+  } while (fixesMadeThisRound != 0);
+
+  spinner.stop();
+  console.log(green("done"), `resolved ${initial - getTotal()} issues completely and fixed problems in ${fixed} places.`);
+}
+
+for (const type of getIssueTypes()) {
+  const title = ISSUE_TITLES[type];
+
+  console.log("\n" + bold(title) + " (" + grouped[type].length + ")");
+  console.log(ISSUE_DESCRIPTIONS[type]);
+
+  for (const issue of grouped[type]) {
+    console.log("\n" + indentText(makePrettyDetails(issue), 1));
+    console.log("\n" + indentText(generateStackTrace(issue.stack), 4));
+  }
+  console.log();
+}
+
+const current = getTotal();
+if (current == 0) Deno.exit(0);
+
+console.log(`Checking completed and found ${bold(getTotal().toString())} issues.`);
+if (args.fix) console.log(`Fixed issues in ${bold(fixed.toString())} places.`);
 
 Deno.exit(1);
+
+function getIssues() {
+  return readMarkdownFiles(rootDirectory, {
+    isCleanUrl: args["clean-url"],
+    indexFile: args["index-file"],
+    allowHtmlExtension: args["allow-ext-html"],
+  });
+}
 
 function makePrettyDetails(issue: Issue) {
   if ("reference" in issue) issue.reference = decodeURI(issue.reference);
@@ -80,6 +232,7 @@ ${bold(strikethrough(red("." + issue.extension)))}${anchor ? dim("#" + anchor) :
   }
 }
 
+/** Generate stacktrace for the report */
 function generateStackTrace(stacktrace: Stack[]) {
   return stacktrace.map((stack) =>
     stack.locations.map((location) =>
@@ -90,28 +243,30 @@ function generateStackTrace(stacktrace: Stack[]) {
   ).flat().join("\n");
 }
 
-async function generateReport(issues: Record<string, Issue[]>) {
-  if (Object.keys(issues).length === 0) {
-    return { total: 0, report: green("Found no issues with links in the documentation!") };
-  }
-  const grouped = await processIssues(issues);
-  let report = "", total = 0;
-  const issueTypes = Object.keys(grouped) as Issue["type"][];
-  for (const type of issueTypes) {
-    const title = ISSUE_TITLES[type];
-    report += "\n" + bold(title) + " (" + grouped[type].length + ")\n";
-    report += ISSUE_DESCRIPTIONS[type];
-    for (const { stack, ...details } of grouped[type]) {
-      report += "\n\n";
-      report += indentText(makePrettyDetails(details), 1);
-      report += "\n" + indentText(generateStackTrace(stack), 4);
+/**
+ * Returns original search string and replaceable string if the issue can be fixed,
+ * otherwise returns undefined.
+ */
+function getFixedString(issue: Issue & { stack: Stack[] }): [string, string] | undefined {
+  switch (issue.type) {
+    case "redirected":
+      return [issue.from, issue.to];
+    case "missing_anchor": {
+      const { root } = parseLink(decodeURIComponent(issue.reference));
+      const possible = getPossibleMatches(issue.anchor, issue.allAnchors)[0];
+      return possible == null ? undefined : [issue.reference, root + "#" + possible];
     }
-    report += "\n";
-    total += grouped[type].length;
+    case "empty_anchor":
+      return [issue.reference, issue.reference.slice(0, -1)];
+    case "wrong_extension": {
+      const { root } = parseLink(issue.reference);
+      return [root, root.slice(0, -issue.actual.length) + issue.expected];
+    }
+    case "disallow_extension": {
+      const { root } = parseLink(issue.reference);
+      return [root, root.slice(0, -(issue.extension.length + 1))];
+    }
+    default:
+      throw new Error("Invalid fixable type");
   }
-  return {
-    total,
-    report: "\n" + red(bold(`Found ${total} issues across the documentation:`)) + "\n" + report +
-      `\nChecking completed and found ${bold(total.toString())} issues.`,
-  };
 }

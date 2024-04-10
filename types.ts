@@ -77,6 +77,13 @@ type ExternalLinkIssue =
   | EmptyDOMIssue
   | PreferLocalLinkIssue;
 
+type FixableIssue =
+  | RedirectedIssue
+  | EmptyAnchorIssue
+  | MissingAnchorIssue
+  | WrongExtensionIssue
+  | DisallowExtensionIssue;
+
 type Issue =
   | ExternalLinkIssue
   | DisallowExtensionIssue
@@ -93,4 +100,4 @@ interface ResponseInfo {
 
 type Stack = { filepath: string; locations: { line: number; columns: number[] }[] };
 
-export type { ExternalLinkIssue, Issue, MarkdownItToken, MissingAnchorIssue, ResponseInfo, Stack };
+export type { ExternalLinkIssue, FixableIssue, Issue, MarkdownItToken, MissingAnchorIssue, ResponseInfo, Stack };

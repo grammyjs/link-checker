@@ -81,6 +81,7 @@ export async function processIssues(issues: Record<string, Issue[]>) {
         const stack = issue.filepaths.sort((a, b) => a.localeCompare(b)).map(async (filepath) => {
           const locations = await findStringLocations(filepath, getSearchString(issue.details));
           if (locations.length == 0) {
+            console.error(filepath, getSearchString(issue.details), issue);
             console.error(yellow(`\
 ====================================================================================
 PANIK. This shouldn't be happening. The search strings are supposed to have at least

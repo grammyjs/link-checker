@@ -205,10 +205,11 @@ async function checkRelativeLink(
     allowHtmlExtension: boolean;
   },
 ) {
+  localLink = decodeURIComponent(localLink);
   const issues: Issue[] = [];
-  const normalizedLocalLink = localLink.startsWith("/")
-    ? relative(resolve(dirInfo.current), resolve(join("./", localLink)))
-    : localLink;
+  const normalizedLocalLink = decodeURIComponent(
+    localLink.startsWith("/") ? relative(resolve(dirInfo.current), resolve(join("./", localLink))) : localLink,
+  );
   let { root, anchor } = parseLink(normalizedLocalLink);
 
   if (options.isCleanUrl) {
