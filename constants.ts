@@ -1,3 +1,5 @@
+export const FIXABLE_ISSUE_TYPES = ["redirected", "missing_anchor", "empty_anchor", "wrong_extension", "disallow_extension"];
+
 export const ISSUE_TYPES = [
   "unknown_link_format",
   "empty_dom",

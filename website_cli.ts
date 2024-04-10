@@ -1,11 +1,13 @@
+import { FIXABLE_ISSUE_TYPES } from "./constants.ts";
 import { parse, stringify } from "./deps/oson.ts";
 import { parseArgs, Spinner } from "./deps/std/cli.ts";
 import { blue, bold, cyan, dim, green, red, strikethrough, underline, yellow } from "./deps/std/fmt.ts";
-import { extname, resolve } from "./deps/std/path.ts";
+import { extname, join, resolve } from "./deps/std/path.ts";
 
 import { ISSUE_DESCRIPTIONS, ISSUE_TITLES, processIssues } from "./issues.ts";
 import { FixableIssue } from "./types.ts";
 import { Issue, Stack } from "./types.ts";
+import { execute } from "./utilities.ts";
 import { getPossibleMatches, indentText, parseLink } from "./utilities.ts";
 import { readMarkdownFiles } from "./website.ts";
 
@@ -24,30 +26,38 @@ if (args._.length > 1) {
 
 const rootDirectory = (args._[0] ?? ".").toString();
 
+try {
+  const result = await Deno.lstat(join(rootDirectory, "ref"));
+  if (!result.isDirectory) throw new Deno.errors.NotFound();
+} catch (error) {
+  if (error instanceof Deno.errors.NotFound) {
+    console.log("Generating /ref directory");
+    const proc = execute(["deno", "task", "docs:genapi"], { cwd: rootDirectory }).spawn();
+    await proc.status;
+  }
+}
+
 if (args.fix) {
   console.warn(
-    "%c| %cNote%c: You have specified the --fix argument. This will fix all the issues this tool can fix.\n",
+    "%c| %cNote%c: You have specified the --fix argument. This will try to fix all the issues this tool can fix.\n",
     "font-weight: bold",
     "color: orange",
     "color: none",
   );
 }
 
-const FIXABLE_ISSUE_TYPES = ["redirected", "missing_anchor", "empty_anchor", "wrong_extension", "disallow_extension"];
-
 let issues: Record<string, Issue[]> = {};
 if (Deno.env.get("DEBUG") != null) {
   console.log("=== DEBUGGING MODE ===");
   try {
     console.log("reading the cache file");
-    issues = parse(await Deno.readTextFile("./link-checker"));
+    issues = parse(await Deno.readTextFile("./.link-checker"));
   } catch (_error) {
     console.log("failed to read the cache file");
     issues = await getIssues();
-    await Deno.writeTextFile("./link-checker", stringify(issues));
+    await Deno.writeTextFile("./.link-checker", stringify(issues));
     console.log("cache file created and will be used next time debugging");
   }
-  console.log("======================");
 } else {
   console.log("Reading files and checking for bad links...");
   issues = await getIssues();
@@ -56,10 +66,6 @@ if (Deno.env.get("DEBUG") != null) {
 if (Object.keys(issues).length === 0) {
   console.log(green("Found no issues with links in the documentation!"));
   Deno.exit(0);
-}
-
-function isFixableIssueType(type: Issue["type"]): type is FixableIssue["type"] {
-  return FIXABLE_ISSUE_TYPES.includes(type);
 }
 
 const grouped = await processIssues(issues);
@@ -105,11 +111,12 @@ if (args.fix) {
         }
 
         // Fix all occurrences
-        for (let stackCount = 1; stackCount <= stackLength; stackCount++) {
-          const stack = grouped[type][i].stack[0];
+        for (let j = 0, stackCount = 1; stackCount <= stackLength; stackCount++, j++) {
+          const stack = grouped[type][i].stack[j];
+          if (stack.filepath.startsWith("ref/")) continue; // do not fix /ref stuff, just report it.
           const content = await Deno.readTextFile(stack.filepath);
           await Deno.writeTextFile(stack.filepath, content.replaceAll(fixStrings[0], fixStrings[1]));
-          grouped[type][i].stack.splice(0, 1);
+          grouped[type][i].stack.splice(j, 1), j--;
           spinner.message = `(${issueCount}/${groupLength}): ${stack.filepath}`;
           fixesMadeThisRound++;
         }
@@ -120,8 +127,8 @@ if (args.fix) {
           spinner.message = `(${issueCount}/${groupLength}) fixed`;
         }
 
+        // Update all issues with same references
         spinner.message = "updating references...";
-        // Update all related issues with same references
         for (const type of getIssueTypes()) {
           for (const issue of grouped[type]) {
             if (!isFixableIssueType(issue.type)) break;
@@ -269,4 +276,8 @@ function getFixedString(issue: Issue & { stack: Stack[] }): [string, string] | u
     default:
       throw new Error("Invalid fixable type");
   }
+}
+
+function isFixableIssueType(type: Issue["type"]): type is FixableIssue["type"] {
+  return FIXABLE_ISSUE_TYPES.includes(type);
 }

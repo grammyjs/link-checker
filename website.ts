@@ -71,7 +71,7 @@ export async function readMarkdownFiles(
       }
 
       for (const anchor of parsed.anchors.used) {
-        usedAnchors[filepath][filepath].add([anchor, filepath]);
+        usedAnchors[filepath][filepath].add([anchor, "#" + anchor]);
       }
 
       // --- Relative Links (Local files) ---

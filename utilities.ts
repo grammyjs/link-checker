@@ -61,7 +61,7 @@ function filterLinksFromTokens(tokens: MarkdownItToken[]) {
   for (const token of tokens) {
     if (token.type === "link_open") {
       const href = token.attrGet("href");
-      if (href != null) links.push(href);
+      if (href != null) links.push(decodeURIComponent(href));
     }
     if (token.children != null) {
       links.push(...filterLinksFromTokens(token.children));
