@@ -1,22 +1,11 @@
+import { ISSUE_TYPES } from "./constants.ts";
 import type { MarkdownIt } from "./deps/markdown-it/mod.ts";
 
-type MarkdownItToken = ReturnType<
+export type MarkdownItToken = ReturnType<
   InstanceType<typeof MarkdownIt>["parse"]
 >[number];
 
-export const ISSUE_TYPES = [
-  "unknown_link_format",
-  "empty_dom",
-  "empty_anchor",
-  "no_response",
-  "not_ok_response",
-  "disallow_extension",
-  "wrong_extension",
-  "linked_file_not_found",
-  "redirected",
-  "missing_anchor",
-  "local_alt_available",
-] as const;
+export type FetchOptions = Parameters<typeof fetch>[1];
 
 interface BaseIssue {
   type: typeof ISSUE_TYPES[number];
@@ -58,7 +47,7 @@ interface RedirectedIssue {
   from: string;
   to: string;
 }
-interface MissingAnchorIssue extends BaseIssue {
+export interface MissingAnchorIssue extends BaseIssue {
   type: "missing_anchor";
   anchor: string;
   allAnchors: Set<string>;
@@ -69,7 +58,7 @@ interface PreferLocalLinkIssue extends BaseIssue {
   reason: string;
 }
 
-type ExternalLinkIssue =
+export type ExternalLinkIssue =
   | RedirectedIssue
   | NotOKResponseIssue
   | NoResponseIssue
@@ -77,14 +66,14 @@ type ExternalLinkIssue =
   | EmptyDOMIssue
   | PreferLocalLinkIssue;
 
-type FixableIssue =
+export type FixableIssue =
   | RedirectedIssue
   | EmptyAnchorIssue
   | MissingAnchorIssue
   | WrongExtensionIssue
   | DisallowExtensionIssue;
 
-type Issue =
+export type Issue =
   | ExternalLinkIssue
   | DisallowExtensionIssue
   | WrongExtensionIssue
@@ -92,12 +81,10 @@ type Issue =
   | UnknownLinkFormatIssue
   | EmptyAnchorIssue;
 
-interface ResponseInfo {
+export interface ResponseInfo {
   response?: Response | null;
   redirected: boolean;
   redirectedUrl: string; // may become useful later.
 }
 
-type Stack = { filepath: string; locations: { line: number; columns: number[] }[] };
-
-export type { ExternalLinkIssue, FixableIssue, Issue, MarkdownItToken, MissingAnchorIssue, ResponseInfo, Stack };
+export type Stack = { filepath: string; locations: { line: number; columns: number[] }[] };

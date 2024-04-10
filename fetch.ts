@@ -1,42 +1,12 @@
+import { ACCEPTABLE_NOT_OK_STATUS, MANUAL_REDIRECTIONS, VALID_REDIRECTIONS } from "./constants.ts";
 import { DOMParser } from "./deps/deno_dom.ts";
 import { magenta, red } from "./deps/std/fmt.ts";
 
-import { ExternalLinkIssue, type ResponseInfo } from "./types.ts";
+import { ExternalLinkIssue, FetchOptions, type ResponseInfo } from "./types.ts";
 import { fetchWithRetries, getAnchors } from "./utilities.ts";
 
-export const ACCEPTABLE_NOT_OK_STATUS: Record<string, number> = {
-  "https://dash.cloudflare.com/login": 403,
-  "https://dash.cloudflare.com/?account=workers": 403,
-  "https://api.telegram.org/file/bot": 404,
-};
-
-const VALID_REDIRECTIONS: Record<string, string> = {
-  "https://localtunnel.me/": "https://theboroer.github.io/localtunnel-www/",
-  "https://nodejs.org/": "https://nodejs.org/en",
-  "https://api.telegram.org/": "https://core.telegram.org/bots",
-  "https://telegram.me/name-of-your-bot?start=custom-payload": "https://telegram.org/",
-  "http://telegram.me/addstickers/": "https://telegram.org/",
-};
-
-export const MANUAL_REDIRECTIONS: Array<string> = [
-  "https://accounts.google.com/signup",
-];
-
-type FetchOptions = Parameters<typeof fetch>[1];
-
-export const FETCH_OPTIONS: FetchOptions = {
-  method: "GET",
-  headers: {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/113.0",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    "Pragma": "no-cache",
-    "Cache-Control": "no-cache",
-  },
-  mode: "cors",
-};
-
-export function getFetchWithRetries(retryOnFail: boolean, maxRetries: number) {
-  return async function (url: string, options = FETCH_OPTIONS): Promise<ResponseInfo> {
+export function getFetchWithRetries(retryOnFail: boolean, maxRetries: number, fetchOptions: FetchOptions) {
+  return async function (url: string, options = fetchOptions): Promise<ResponseInfo> {
     let retries = 0;
     const retryDelay = 3_000;
     const timeout = 30_000;

@@ -4,13 +4,14 @@ import { distance } from "./deps/jaro-winkler.ts";
 
 import { getFetchWithRetries } from "./fetch.ts";
 import type { MarkdownItToken } from "./types.ts";
+import { FETCH_OPTIONS } from "./constants.ts";
 
 const RETRY_FAILED_FETCH = true;
 const MAX_RETRIES = 5;
 const ID_TAGS = ["section", "h1", "h2", "h3", "h4", "h5", "h6", "div", "a"];
 const MINIMUM_DISTANCE = 0.8;
 
-export const fetchWithRetries = getFetchWithRetries(RETRY_FAILED_FETCH, MAX_RETRIES);
+export const fetchWithRetries = getFetchWithRetries(RETRY_FAILED_FETCH, MAX_RETRIES, FETCH_OPTIONS);
 
 export function parseMarkdownContent(mdit: MarkdownIt, content: string) {
   const html = mdit.render(content, {});

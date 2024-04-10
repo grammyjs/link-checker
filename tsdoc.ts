@@ -6,7 +6,8 @@ import { blue } from "./deps/std/fmt.ts";
 import { transformURL } from "./fetch.ts";
 import { findGroupedLinksIssues, GroupedLinksResolved, groupLinks, resolveGroupedLinks } from "./group_links.ts";
 import { ExternalLinkIssue, Issue } from "./types.ts";
-import { checkExternalUrl, parseLink, parseMarkdownContent } from "./utilities.ts";
+import { parseLink, parseMarkdownContent } from "./utilities.ts";
+import { checkExternalUrl } from "./fetch.ts";
 
 export interface TSDocLink {
   location: Location;
@@ -40,7 +41,7 @@ export async function findIssues(module: string) {
     const { root, anchor } = parseLink(href);
     if (allAnchors[root] != null) {
       if (anchor != null && !allAnchors[root].has(anchor)) {
-        issues.push({ type: "missing_anchor", anchor, loc: linkLocations[href], reference: root });
+        issues.push({ type: "missing_anchor", anchor, loc: linkLocations[href], reference: root, allAnchors: allAnchors[root] });
       }
       continue;
     }
@@ -65,7 +66,7 @@ export async function findIssues(module: string) {
 
     if (anchor != null && !allAnchors[root].has(anchor)) {
       for (const location of linkLocations[href]) {
-        issues.push({ type: "missing_anchor", loc: location, reference: root, anchor });
+        issues.push({ type: "missing_anchor", loc: location, reference: root, anchor, allAnchors: allAnchors[root] });
       }
     }
   }

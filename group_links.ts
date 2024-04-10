@@ -12,6 +12,7 @@
  * @module
  */
 
+import { DEFAULT_GITHUB_API_ROOT } from "./constants.ts";
 import { DOMParser } from "./deps/deno_dom.ts";
 import { blue, dim, yellow } from "./deps/std/fmt.ts";
 
@@ -46,7 +47,7 @@ export interface GroupedLinksResolved {
 // repository for getting all branches, and one for each file mentioned.
 
 const {
-  GITHUB_API_ROOT = "https://api.github.com",
+  GITHUB_API_ROOT = DEFAULT_GITHUB_API_ROOT,
   GITHUB_TOKEN,
 } = getEnv(true, "GITHUB_API_ROOT", "GITHUB_TOKEN");
 if (GITHUB_TOKEN == null) {
