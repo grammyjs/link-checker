@@ -5,10 +5,8 @@ import { blue, bold, cyan, dim, green, red, strikethrough, underline, yellow } f
 import { extname, join, resolve } from "./deps/std/path.ts";
 
 import { ISSUE_DESCRIPTIONS, ISSUE_TITLES, processIssues } from "./issues.ts";
-import { FixableIssue } from "./types.ts";
-import { Issue, Stack } from "./types.ts";
-import { execute } from "./utilities.ts";
-import { getPossibleMatches, indentText, parseLink } from "./utilities.ts";
+import { FixableIssue, Issue, Stack } from "./types.ts";
+import { execute, getPossibleMatches, indentText, parseLink } from "./utilities.ts";
 import { readMarkdownFiles } from "./website.ts";
 
 const args = parseArgs(Deno.args, {
@@ -33,7 +31,10 @@ try {
   if (error instanceof Deno.errors.NotFound) {
     console.log("Generating /ref directory");
     const proc = execute(["deno", "task", "docs:genapi"], { cwd: rootDirectory }).spawn();
-    await proc.status;
+    if (!(await proc.status).success) {
+      console.log("failed to generate API reference documentation. try again");
+      Deno.exit(1);
+    }
   }
 }
 
@@ -114,6 +115,7 @@ if (args.fix) {
         for (let j = 0, stackCount = 1; stackCount <= stackLength; stackCount++, j++) {
           const stack = grouped[type][i].stack[j];
           if (stack.filepath.startsWith("ref/")) continue; // do not fix /ref stuff, just report it.
+          fixedPlaces.add(stack.filepath);
           const content = await Deno.readTextFile(stack.filepath);
           await Deno.writeTextFile(stack.filepath, content.replaceAll(fixStrings[0], fixStrings[1]));
           grouped[type][i].stack.splice(j, 1), j--;
@@ -132,6 +134,7 @@ if (args.fix) {
         for (const type of getIssueTypes()) {
           for (const issue of grouped[type]) {
             if (!isFixableIssueType(issue.type)) break;
+            // Only update the reference if all the files have been updated:
             if (issue.stack.some(({ filepath }) => !fixedPlaces.has(filepath))) continue;
             switch (issue.type) {
               case "redirected":
