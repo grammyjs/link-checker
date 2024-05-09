@@ -1,6 +1,7 @@
+import { CLOUDFLARE_PROTECTED } from "./constants.ts";
 import { ACCEPTABLE_NOT_OK_STATUS, MANUAL_REDIRECTIONS, VALID_REDIRECTIONS } from "./constants.ts";
 import { DOMParser } from "./deps/deno_dom.ts";
-import { magenta, red } from "./deps/std/fmt.ts";
+import { bold, magenta, red } from "./deps/std/fmt.ts";
 
 import { ExternalLinkIssue, FetchOptions, type ResponseInfo } from "./types.ts";
 import { fetchWithRetries, getAnchors } from "./utilities.ts";
@@ -138,8 +139,35 @@ export async function checkExternalUrl(url: string, utils: { domParser: DOMParse
   const { response, redirected, redirectedUrl } = await fetchWithRetries(transformed);
 
   if (response == null) {
-    issues.push({ type: "no_response", reference: transformed });
+    issues.push({ type: "no_response", reference: url });
     return { issues };
+  }
+
+  const { hostname } = new URL(url);
+  if (
+    response.status === 403 &&
+    (response.headers.has("cf-ray") || response.headers.has("cf-mitigated") || response.headers.get("server") === "cloudflare")
+  ) {
+    issues.push({
+      type: "inaccessible",
+      reference: url,
+      reason: "The website is protected by Cloudflare DDoS Protection Services." +
+        (!CLOUDFLARE_PROTECTED.includes(hostname)
+          ? `\
+The site seems to satisfy the checks for a site with Cloudflare DDoS Protection Services enabled, but the site ${bold(hostname)}\
+isn't included in the list of acknowledged Cloudflare protected list. Please add this to the list by opening a pull request.`
+          : ""),
+    });
+    return { issues };
+  } else if (CLOUDFLARE_PROTECTED.includes(hostname)) {
+    // No signs of cloudflare protection but still included in the list.
+    // And since its accessible now, and can be checked, don't return rn.
+    issues.push({
+      type: "inaccessible",
+      reference: url,
+      reason:
+        "The site currently seems to not have Cloudflare protection enabled. Confirm this, and remove the entry from the list of protected websites.",
+    });
   }
 
   if (redirected && MANUAL_REDIRECTIONS.includes(transformed)) {

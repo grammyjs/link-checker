@@ -4,8 +4,9 @@ import { join, relative } from "../deps/std/path.ts";
 import { readMarkdownFiles } from "../website.ts";
 import { ISSUE_DESCRIPTIONS, ISSUE_TITLES } from "../issues.ts";
 import { execute, getCommitSha, getEnv, getPossibleMatches, parseLink } from "../utilities.ts";
-import { Issue, Stack } from "../types.ts";
+import { Issue, IssueWithStack, Stack } from "../types.ts";
 import { processIssues } from "../issues.ts";
+import { WARNING_ISSUE_TYPES } from "../constants.ts";
 
 const env = getEnv(false, "APP_ID", "INSTALLATION_ID", "PRIVATE_KEY", "DIR");
 
@@ -25,9 +26,13 @@ const issues = await readMarkdownFiles(dir, {
   isCleanUrl: true,
   allowHtmlExtension: false,
 });
+const processed = await processIssues(issues);
 const issueNumber = await findOpenIssue();
 
-if (Object.keys(issues).length === 0) {
+if (
+  Object.keys(issues).length === 0 ||
+  !Object.values(processed).flat().some((issue) => !WARNING_ISSUE_TYPES.includes(issue.type))
+) {
   console.log("Found no issues");
   if (issueNumber !== 0) {
     // the issues were fixed but the issue wasn't closed, so let's close it.
@@ -41,7 +46,8 @@ if (Object.keys(issues).length === 0) {
   Deno.exit(0);
 }
 
-const reportBody = await generateReport(issues);
+// if we only have issues of sub-type 'warning', don't care making a new issue.
+const reportBody = await generateReport(processed);
 if (issueNumber == 0) await createIssue(reportBody);
 else await updateIssue(issueNumber, reportBody);
 console.log(`https://github.com/${REPO.owner}/${REPO.repo}/issues/${issueNumber}`);
@@ -81,9 +87,7 @@ function indentText(text: string, indentSize: number) {
   return text.includes("\n") ? text.split("\n").map((line) => indent + line).join("\n") : indent + text;
 }
 
-export async function generateReport(issues: Record<string, Issue[]>) {
-  const grouped = await processIssues(issues);
-
+export async function generateReport(grouped: Record<Issue["type"], IssueWithStack[]>) {
   let report = `\
 This issue contains the details regarding few broken links in the documentation. \
 Please review the report below and close this issue once the fixes are made.
@@ -146,6 +150,8 @@ function makePrettyDetails(issue: Issue) {
       return `Omit the extension \`${issue.extension}\` from \`${root}${anchorText}\``;
     }
     case "local_alt_available":
+      return `${issue.reference}\n\n${issue.reason}`;
+    case "inaccessible":
       return `${issue.reference}\n\n${issue.reason}`;
     default:
       throw new Error("Invalid type of issue! This shouldn't be happening.");

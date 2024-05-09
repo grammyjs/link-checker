@@ -57,6 +57,11 @@ interface PreferLocalLinkIssue extends BaseIssue {
   reference: string;
   reason: string;
 }
+interface InaccessibleLinkIssue extends BaseIssue {
+  type: "inaccessible";
+  reference: string;
+  reason: string;
+}
 
 export type ExternalLinkIssue =
   | RedirectedIssue
@@ -64,7 +69,8 @@ export type ExternalLinkIssue =
   | NoResponseIssue
   | MissingAnchorIssue
   | EmptyDOMIssue
-  | PreferLocalLinkIssue;
+  | PreferLocalLinkIssue
+  | InaccessibleLinkIssue;
 
 export type FixableIssue =
   | RedirectedIssue
@@ -87,4 +93,14 @@ export interface ResponseInfo {
   redirectedUrl: string; // may become useful later.
 }
 
-export type Stack = { filepath: string; locations: { line: number; columns: number[] }[] };
+export interface Location {
+  line: number;
+  columns: number[];
+}
+
+export interface Stack {
+  filepath: string;
+  locations: Location[];
+}
+
+export type IssueWithStack = Issue & { stack: Stack[] };

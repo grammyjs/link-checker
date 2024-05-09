@@ -5,7 +5,7 @@ import { blue, bold, cyan, dim, green, red, strikethrough, underline, yellow } f
 import { extname, join, resolve } from "./deps/std/path.ts";
 
 import { ISSUE_DESCRIPTIONS, ISSUE_TITLES, processIssues } from "./issues.ts";
-import { FixableIssue, Issue, Stack } from "./types.ts";
+import { FixableIssue, Issue, IssueWithStack, Stack } from "./types.ts";
 import { execute, getPossibleMatches, indentText, parseLink } from "./utilities.ts";
 import { readMarkdownFiles } from "./website.ts";
 
@@ -237,6 +237,8 @@ ${bold(strikethrough(red("." + issue.extension)))}${anchor ? dim("#" + anchor) :
     }
     case "local_alt_available":
       return `${cyan(issue.reference)}\n${issue.reason}`;
+    case "inaccessible":
+      return `${cyan(issue.reference)}\n${issue.reason}`;
     default:
       throw new Error("Invalid type of issue! This shouldn't be happening.");
   }
@@ -257,7 +259,7 @@ function generateStackTrace(stacktrace: Stack[]) {
  * Returns original search string and replaceable string if the issue can be fixed,
  * otherwise returns undefined.
  */
-function getFixedString(issue: Issue & { stack: Stack[] }): [string, string] | undefined {
+function getFixedString(issue: IssueWithStack): [string, string] | undefined {
   switch (issue.type) {
     case "redirected":
       return [issue.from, issue.to];

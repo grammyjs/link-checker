@@ -12,7 +12,12 @@ export const ISSUE_TYPES = [
   "redirected",
   "missing_anchor",
   "local_alt_available",
+  "inaccessible",
 ] as const;
+
+export const WARNING_ISSUE_TYPES: typeof ISSUE_TYPES[number][] = [
+  "inaccessible",
+];
 
 export const ACCEPTABLE_NOT_OK_STATUS: Record<string, number> = {
   "https://dash.cloudflare.com/login": 403,
@@ -28,8 +33,13 @@ export const VALID_REDIRECTIONS: Record<string, string> = {
   "http://telegram.me/addstickers/": "https://telegram.org/",
 };
 
-export const MANUAL_REDIRECTIONS: Array<string> = [
+export const MANUAL_REDIRECTIONS: string[] = [
   "https://accounts.google.com/signup",
+];
+
+/** Websites protected by Cloudflare's DDos Protection Services */
+export const CLOUDFLARE_PROTECTED: string[] = [
+  "www.scaleway.com",
 ];
 
 export const FETCH_OPTIONS = {
@@ -44,3 +54,10 @@ export const FETCH_OPTIONS = {
 } as const;
 
 export const DEFAULT_GITHUB_API_ROOT = "https://api.github.com";
+
+export const SEARCH_PANIC_MESSAGE = `\
+====================================================================================
+PANIK. This shouldn't be happening. The search strings are supposed to have at least
+one occurrence in the corresponding file. Please report this issue with enough
+information and context at: https://github.com/grammyjs/link-checker/issues/new.
+====================================================================================`;

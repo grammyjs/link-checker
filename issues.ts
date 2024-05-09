@@ -3,6 +3,8 @@ import { equal } from "./deps/std/assert.ts";
 
 import { findStringLocations } from "./utilities.ts";
 import { Issue, Stack } from "./types.ts";
+import { SEARCH_PANIC_MESSAGE } from "./constants.ts";
+import { IssueWithStack } from "./types.ts";
 
 export const ISSUE_TITLES: Record<Issue["type"], string> = {
   empty_dom: "Empty DOM content",
@@ -16,6 +18,7 @@ export const ISSUE_TITLES: Record<Issue["type"], string> = {
   unknown_link_format: "Unknown link type",
   linked_file_not_found: "Missing files",
   local_alt_available: "Local alternative available",
+  inaccessible: "Inaccessible website",
 };
 
 export const ISSUE_DESCRIPTIONS: Record<Issue["type"], string> = {
@@ -46,6 +49,8 @@ local documents is prohibited. Remove the following extensions.`,
   local_alt_available: `\
 There are local alternatives available for the following links, and they should be replaced
 with the local alternatives.`,
+  inaccessible: `\
+The external link is inaccessible to the tool. They should be checked manually`,
 };
 
 export function getSearchString(issue: Issue) {
@@ -62,6 +67,7 @@ export function getSearchString(issue: Issue) {
     case "unknown_link_format":
     case "empty_anchor":
     case "local_alt_available":
+    case "inaccessible":
       return `${issue.reference}`;
   }
 }
@@ -82,12 +88,7 @@ export async function processIssues(issues: Record<string, Issue[]>) {
           const locations = await findStringLocations(filepath, getSearchString(issue.details));
           if (locations.length == 0) {
             console.error(filepath, getSearchString(issue.details), issue);
-            console.error(yellow(`\
-====================================================================================
-PANIK. This shouldn't be happening. The search strings are supposed to have at least
-one occurrence in the corresponding file. Please report this issue with enough
-information and context at: https://github.com/grammyjs/link-checker/issues/new.
-====================================================================================`));
+            console.error(yellow(SEARCH_PANIC_MESSAGE));
           }
           return { filepath, locations: locations.map(([line, columns]) => ({ line, columns })) };
         });
@@ -97,5 +98,5 @@ information and context at: https://github.com/grammyjs/link-checker/issues/new.
     grouped[issue.type] ??= [];
     grouped[issue.type].push(issue);
     return grouped;
-  }, {} as Record<Issue["type"], (Issue & { stack: Stack[] })[]>);
+  }, {} as Record<Issue["type"], IssueWithStack[]>);
 }
