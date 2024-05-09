@@ -101,8 +101,5 @@ Supported arguments:
 
 This repository also contains a Github workflow for checking for issues and reporting them in the website's Github repository issue section.
 
-The Github can be installed to the website repository and by setting required environment secrets it can check and open/update issues whenever
-new issues in links are found.
-
 TODO: Explain how to configure the workflow.
 
