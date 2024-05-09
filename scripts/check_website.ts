@@ -14,6 +14,20 @@ const REPO = { owner: "dcdunkan", repo: "website" };
 await execute(["git", "clone", `https://github.com/${REPO.owner}/${REPO.repo}`]).output();
 const dir = join(env.DIR, "website", "site", "docs");
 
+try {
+  const result = await Deno.lstat(join(dir, "ref"));
+  if (!result.isDirectory) throw new Deno.errors.NotFound();
+} catch (error) {
+  if (error instanceof Deno.errors.NotFound) {
+    console.log("Generating /ref directory");
+    const proc = execute(["deno", "task", "docs:genapi"], { cwd: dir }).spawn();
+    if (!(await proc.status).success) {
+      console.log("failed to generate API reference documentation. try again");
+      Deno.exit(1);
+    }
+  }
+}
+
 const app = new App({ appId: Number(env.APP_ID), privateKey: env.PRIVATE_KEY });
 const octokit = await app.getInstallationOctokit(Number(env.INSTALLATION_ID));
 
