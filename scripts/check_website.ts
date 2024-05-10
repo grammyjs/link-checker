@@ -8,7 +8,6 @@ import { WARNING_ISSUE_TYPES } from "../constants.ts";
 import { parse, stringify } from "../deps/oson.ts";
 
 const env = getEnv(false, "APP_ID", "INSTALLATION_ID", "PRIVATE_KEY", "DIR");
-
 const REPO = { owner: "dcdunkan", repo: "website" };
 await (execute(["git", "clone", `https://github.com/${REPO.owner}/${REPO.repo}`]).spawn()).status;
 const dir = resolve(join(env.DIR, "website", "site", "docs"));
@@ -102,7 +101,11 @@ function generateStackTrace(stacktrace: Stack[]) {
     stack.locations.map((location) =>
       location.columns.map((column) => {
         const path = relative(join(env.DIR, "website"), stack.filepath);
-        return `- <samp>**${path}**:${location.line}:${column} [[src](https://github.com/${REPO.owner}/${REPO.repo}/blob/${COMMIT_SHA}/${path}?plain=1#L${location.line}C${column})]</samp>`;
+        return `- <samp>**${path}**:${location.line}:${column} ` + (
+          path.split("/")[2] !== "ref"
+            ? `[[src](https://github.com/${REPO.owner}/${REPO.repo}/blob/${COMMIT_SHA}/${path}?plain=1#L${location.line}C${column})]</samp>`
+            : `[[original source](https://github.com/grammyjs/${getGithubRepoName(path)})]`
+        );
       })
     ).flat()
   ).flat().join("\n");
@@ -190,4 +193,9 @@ function getIssues() {
     isCleanUrl: true,
     allowHtmlExtension: false,
   });
+}
+
+function getGithubRepoName(path: string) {
+  const name = path.split("/")[3];
+  return name === "core" ? "grammY" : name;
 }
