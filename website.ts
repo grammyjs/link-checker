@@ -47,7 +47,7 @@ export async function readMarkdownFiles(
 
       const filepath = join(directory, entry.name);
 
-      if (entry.isDirectory) {
+      if (entry.isDirectory && entry.name !== "node_modules") {
         await readDirectoryFiles(filepath);
         continue;
       }
@@ -208,7 +208,7 @@ async function checkRelativeLink(
   localLink = decodeURIComponent(localLink);
   const issues: Issue[] = [];
   const normalizedLocalLink = decodeURIComponent(
-    localLink.startsWith("/") ? relative(resolve(dirInfo.current), resolve(join("./", localLink))) : localLink,
+    localLink.startsWith("/") ? relative(resolve(dirInfo.current), resolve(join(dirInfo.root, "./", localLink))) : localLink,
   );
   let { root, anchor } = parseLink(normalizedLocalLink);
 
