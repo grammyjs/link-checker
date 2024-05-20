@@ -1,38 +1,13 @@
-import { type ResponseInfo } from "./types.ts";
+import { CLOUDFLARE_PROTECTED } from "./constants.ts";
+import { ACCEPTABLE_NOT_OK_STATUS, MANUAL_REDIRECTIONS, VALID_REDIRECTIONS } from "./constants.ts";
+import { DOMParser } from "./deps/deno_dom.ts";
+import { bold, magenta, red } from "./deps/std/fmt.ts";
 
-export const ACCEPTABLE_NOT_OK_STATUS: Record<string, number> = {
-  "https://dash.cloudflare.com/login": 403,
-  "https://dash.cloudflare.com/?account=workers": 403,
-  "https://api.telegram.org/file/bot": 404,
-};
+import { ExternalLinkIssue, FetchOptions, type ResponseInfo } from "./types.ts";
+import { fetchWithRetries, getAnchors } from "./utilities.ts";
 
-const VALID_REDIRECTIONS: Record<string, string> = {
-  "https://localtunnel.me/": "https://theboroer.github.io/localtunnel-www/",
-  "https://nodejs.org/": "https://nodejs.org/en",
-  "https://api.telegram.org/": "https://core.telegram.org/bots",
-  "https://telegram.me/name-of-your-bot?start=custom-payload": "https://telegram.org/",
-  "http://telegram.me/addstickers/": "https://telegram.org/",
-};
-
-export const MANUAL_REDIRECTIONS: Array<string> = [
-  "https://accounts.google.com/signup",
-];
-
-type FetchOptions = Parameters<typeof fetch>[1];
-
-export const FETCH_OPTIONS: FetchOptions = {
-  method: "GET",
-  headers: {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/113.0",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    "Pragma": "no-cache",
-    "Cache-Control": "no-cache",
-  },
-  mode: "cors",
-};
-
-export function getFetchWithRetries(retryOnFail: boolean, maxRetries: number) {
-  return async function (url: string, options = FETCH_OPTIONS): Promise<ResponseInfo> {
+export function getFetchWithRetries(retryOnFail: boolean, maxRetries: number, fetchOptions: FetchOptions) {
+  return async function (url: string, options = fetchOptions): Promise<ResponseInfo> {
     let retries = 0;
     const retryDelay = 3_000;
     const timeout = 30_000;
@@ -156,4 +131,75 @@ export function isValidAnchor(all: Set<string>, url: string, anchor: string) {
     }
   }
   return false;
+}
+
+export async function checkExternalUrl(url: string, utils: { domParser: DOMParser }) {
+  const issues: ExternalLinkIssue[] = [];
+  const transformed = transformURL(url);
+  const { response, redirected, redirectedUrl } = await fetchWithRetries(transformed);
+
+  if (response == null) {
+    issues.push({ type: "no_response", reference: url });
+    return { issues };
+  }
+
+  const { hostname } = new URL(url);
+  if (
+    response.status === 403 &&
+    (response.headers.has("cf-ray") || response.headers.has("cf-mitigated") || response.headers.get("server") === "cloudflare")
+  ) {
+    issues.push({
+      type: "inaccessible",
+      reference: url,
+      reason: "The website is protected by Cloudflare DDoS Protection Services." +
+        (!CLOUDFLARE_PROTECTED.includes(hostname)
+          ? `\
+The site seems to satisfy the checks for a site with Cloudflare DDoS Protection Services enabled, but the site ${bold(hostname)}\
+isn't included in the list of acknowledged Cloudflare protected list. Please add this to the list by opening a pull request.`
+          : ""),
+    });
+    return { issues };
+  } else if (CLOUDFLARE_PROTECTED.includes(hostname)) {
+    // No signs of cloudflare protection but still included in the list.
+    // And since its accessible now, and can be checked, don't return rn.
+    issues.push({
+      type: "inaccessible",
+      reference: url,
+      reason:
+        "The site currently seems to not have Cloudflare protection enabled. Confirm this, and remove the entry from the list of protected websites.",
+    });
+  }
+
+  if (redirected && MANUAL_REDIRECTIONS.includes(transformed)) {
+    return { issues };
+  }
+
+  if (redirected && !isValidRedirection(new URL(transformed), new URL(redirectedUrl))) {
+    issues.push({ type: "redirected", from: transformed, to: response.url });
+  }
+
+  if (!response.ok && ACCEPTABLE_NOT_OK_STATUS[url] !== response.status) {
+    issues.push({ type: "not_ok_response", reference: url, status: response.status, statusText: response.statusText });
+    console.log(red("not OK"), response.status, response.statusText);
+    return { issues };
+  }
+
+  const contentType = response.headers.get("content-type");
+  if (contentType == null) {
+    console.log(magenta("No Content-Type header was found in the response. Continuing anyway"));
+  } else if (!contentType.includes("text/html")) {
+    console.log(magenta(`Content-Type header is ${contentType}; continuing with HTML anyway`));
+  }
+
+  try {
+    const content = await response.text();
+    const document = utils.domParser.parseFromString(content, "text/html");
+    if (document == null) throw new Error("Failed to parse the webpage: skipping");
+    const anchors = getAnchors(document, { includeHref: true });
+    return { issues, anchors, document };
+  } catch (error) {
+    issues.push({ type: "empty_dom", reference: url });
+    console.error(red("error:"), error);
+    return { issues };
+  }
 }

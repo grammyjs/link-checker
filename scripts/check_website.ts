@@ -1,18 +1,30 @@
-import { App } from "https://esm.sh/@octokit/app@14.0.2?dts";
+import { App } from "../deps/octokit_app.ts";
+import { join, relative, resolve } from "../deps/std/path.ts";
 import { readMarkdownFiles } from "../website.ts";
-import { findStringLocations, getSearchString, ISSUE_DESCRIPTIONS, ISSUE_TITLES } from "../issues.ts";
-import { Issue } from "../types.ts";
-import { equal } from "../deps/std/assert.ts";
-import { relative } from "https://deno.land/std@0.219.1/path/posix/relative.ts";
-import { parseLink } from "../utilities.ts";
-import { join } from "../deps/std/path.ts";
-import { yellow } from "../deps/std/fmt.ts";
+import { ISSUE_DESCRIPTIONS, ISSUE_TITLES, processIssues } from "../issues.ts";
+import { execute, getCommitSha, getEnv, getPossibleMatches, parseLink } from "../utilities.ts";
+import { Issue, IssueWithStack, Stack } from "../types.ts";
+import { WARNING_ISSUE_TYPES } from "../constants.ts";
+import { parse, stringify } from "../deps/oson.ts";
 
-const env = getEnv("APP_ID", "INSTALLATION_ID", "PRIVATE_KEY", "DIR");
-
+const env = getEnv(false, "APP_ID", "INSTALLATION_ID", "PRIVATE_KEY", "DIR");
 const REPO = { owner: "dcdunkan", repo: "website" };
-await new Deno.Command("git", { args: ["clone", `https://github.com/${REPO.owner}/${REPO.repo}`] }).output();
-const dir = join(env.DIR, "website", "site", "docs");
+await (execute(["git", "clone", `https://github.com/${REPO.owner}/${REPO.repo}`]).spawn()).status;
+const dir = resolve(join(env.DIR, "website", "site", "docs"));
+
+try {
+  const result = await Deno.lstat(join(dir, "ref"));
+  if (!result.isDirectory) throw new Deno.errors.NotFound();
+} catch (error) {
+  if (error instanceof Deno.errors.NotFound) {
+    console.log("Generating /ref directory");
+    const proc = execute(["deno", "task", "docs:genapi"], { cwd: dir }).spawn();
+    if (!(await proc.status).success) {
+      console.log("failed to generate API reference documentation. try again");
+      Deno.exit(1);
+    }
+  }
+}
 
 const app = new App({ appId: Number(env.APP_ID), privateKey: env.PRIVATE_KEY });
 const octokit = await app.getInstallationOctokit(Number(env.INSTALLATION_ID));
@@ -20,17 +32,32 @@ const octokit = await app.getInstallationOctokit(Number(env.INSTALLATION_ID));
 const me = await app.octokit.request("GET /app");
 const LOGIN = me.data.slug + "[bot]";
 
-const COMMIT_SHA = new TextDecoder().decode(
-  (await new Deno.Command("git", { args: ["rev-parse", "HEAD"], cwd: dir }).output()).stdout,
-).trim();
-const issues = await readMarkdownFiles(dir, {
-  indexFile: "README.md",
-  isCleanUrl: true,
-  allowHtmlExtension: false,
-});
+const COMMIT_SHA = await getCommitSha(dir);
+
+let issues: Record<string, Issue[]> = {};
+if (Deno.env.get("DEBUG") != null) {
+  console.log("=== DEBUGGING MODE ===");
+  try {
+    console.log("reading the cache file");
+    issues = parse(await Deno.readTextFile("./.link-checker"));
+  } catch (_error) {
+    console.log("failed to read the cache file");
+    issues = await getIssues();
+    await Deno.writeTextFile("./.link-checker", stringify(issues));
+    console.log("cache file created and will be used next time debugging");
+  }
+} else {
+  console.log("Reading files and checking for bad links...");
+  issues = await getIssues();
+}
+
+const processed = await processIssues(issues);
 const issueNumber = await findOpenIssue();
 
-if (Object.keys(issues).length === 0) {
+if (
+  Object.keys(issues).length === 0 ||
+  !Object.values(processed).flat().some((issue) => !WARNING_ISSUE_TYPES.includes(issue.type))
+) {
   console.log("Found no issues");
   if (issueNumber !== 0) {
     // the issues were fixed but the issue wasn't closed, so let's close it.
@@ -44,7 +71,8 @@ if (Object.keys(issues).length === 0) {
   Deno.exit(0);
 }
 
-const reportBody = await generateReport(issues);
+// if we only have issues of sub-type 'warning', don't care making a new issue.
+const reportBody = generateReport(processed);
 if (issueNumber == 0) await createIssue(reportBody);
 else await updateIssue(issueNumber, reportBody);
 console.log(`https://github.com/${REPO.owner}/${REPO.repo}/issues/${issueNumber}`);
@@ -68,30 +96,19 @@ async function updateIssue(number: number, body: string) {
   return res.status === 200;
 }
 
-async function generateStackTrace(filepaths: string[], searchString: string) {
-  return (await Promise.all(
-    filepaths.sort((a, b) => a.localeCompare(b)).map(async (filepath) => {
-      const locations = await findStringLocations(filepath, searchString);
-      if (locations.length == 0) {
-        console.error(yellow(`\
-====================================================================================
-PANIK. This shouldn't be happening. The search strings are supposed to have at least
-one occurrence in the corresponding file. Please report this issue with enough
-information and context at: https://github.com/grammyjs/link-checker/issues/new.
-====================================================================================`));
-        return [];
-      }
-      return locations.map(([lineNumber, columns]) =>
-        columns.map((column) =>
-          `- <samp>**${
-            relative(dir, filepath)
-          }**:${lineNumber}:${column} [[src](https://github.com/${REPO.owner}/${REPO.repo}/blob/${COMMIT_SHA}/${
-            relative(dir, filepath)
-          }?plain=1#L${lineNumber}C${column})]</samp>`
-        )
-      ).flat();
-    }),
-  )).flat().join("\n");
+function generateStackTrace(stacktrace: Stack[]) {
+  return stacktrace.map((stack) =>
+    stack.locations.map((location) =>
+      location.columns.map((column) => {
+        const path = relative(join(env.DIR, "website"), stack.filepath);
+        return `- <samp>**${path}**:${location.line}:${column} ` + (
+          path.split("/")[2] !== "ref"
+            ? `[[src](https://github.com/${REPO.owner}/${REPO.repo}/blob/${COMMIT_SHA}/${path}?plain=1#L${location.line}C${column})]</samp>`
+            : `[[original source](https://github.com/grammyjs/${getGithubRepoName(path)})]`
+        );
+      })
+    ).flat()
+  ).flat().join("\n");
 }
 
 function indentText(text: string, indentSize: number) {
@@ -99,43 +116,29 @@ function indentText(text: string, indentSize: number) {
   return text.includes("\n") ? text.split("\n").map((line) => indent + line).join("\n") : indent + text;
 }
 
-export async function generateReport(issues: Record<string, Issue[]>) {
-  const grouped = Object.entries(issues).map(([filepath, issues]) => {
-    return issues.map((issue) => ({ filepath, issue }));
-  }).flat().reduce((deduped, current) => {
-    const alreadyDeduped = deduped.find((x) => equal(current.issue, x.details));
-    if (alreadyDeduped == null) return deduped.concat({ details: current.issue, stack: [current.filepath] });
-    alreadyDeduped.stack.push(current.filepath);
-    return deduped;
-  }, [] as { details: Issue; stack: string[] }[]).reduce((grouped, issue) => {
-    grouped[issue.details.type] ??= [];
-    grouped[issue.details.type].push(issue);
-    return grouped;
-  }, {} as Record<Issue["type"], { details: Issue; stack: string[] }[]>);
-
+export function generateReport(grouped: Record<Issue["type"], IssueWithStack[]>) {
   let report = `\
-This issue contains the details regarding the broken links in the documentation. \
+This issue contains the details regarding few broken links in the documentation. \
 Please review the report below and close this issue once the fixes are made.
 
-> This is auto-generated and if the report seem broken please [open an issue](https://github.com/grammyjs/link-checker/issues/new).`;
+<sup>This is auto-generated and if the report seem broken, please open an issue [here](https://github.com/grammyjs/link-checker/issues/new).</sup>\n\n`;
   let total = 0;
   const issueTypes = Object.keys(grouped) as Issue["type"][];
   for (const type of issueTypes.sort((a, b) => a.localeCompare(b))) {
     const title = ISSUE_TITLES[type];
-    report += "\n\n### " + title + " (" + grouped[type].length + ")\n\n";
+    report += "### " + title + " (" + grouped[type].length + ")\n\n";
     report += ISSUE_DESCRIPTIONS[type].split("\n").join(" ");
     report += "\n\n<details><summary>Show the issues</summary>";
-    for (const { details, stack } of grouped[type]) {
+    for (const { stack, ...details } of grouped[type]) {
       report += "\n\n";
-      report += "- [ ] " + makePrettyDetails(details);
-      const stackTrace = await generateStackTrace(stack, getSearchString(details));
-      report += "\n\n" + indentText(stackTrace, 5);
+      report += "- [ ] " + indentText(makePrettyDetails(details), 5).slice(5);
+      report += "\n\n" + indentText(generateStackTrace(stack), 5);
     }
-    report += "\n</details>\n";
+    report += "\n</details>\n\n";
     total += grouped[type].length;
   }
-  return "\n" + `**Found ${total} issues across the documentation (commit: ${COMMIT_SHA}).**` + "\n\n" + report +
-    `\n\n<div align="center">\n\n> Generated by [grammyjs/link-checker](https://github.com/grammyjs/link-checker).\n</div>`;
+  return "\n" + `**Found ${total} issues across the documentation (commit: ${COMMIT_SHA})**` + "\n\n" + report +
+    `\n\n<div align="center">\n\n<sub>Generated by [grammyjs/link-checker](https://github.com/grammyjs/link-checker)</sub>\n</div>`;
 }
 
 // Make sure the strings returned are ONE LINERS
@@ -156,11 +159,16 @@ function makePrettyDetails(issue: Issue) {
       return `Expected \`${issue.expected}\` as the file extension instead of \`${issue.actual}\` in ${root}${anchorText}`;
     }
     case "linked_file_not_found":
-      return `\`${issue.filepath}\` (not found)`;
+      return `The file at \`${issue.filepath}\` referenced as \`${issue.reference}\` was not found`;
     case "redirected":
       return `${issue.from} → ${issue.to}`;
-    case "missing_anchor":
-      return `${issue.reference}${"#" + issue.anchor}`;
+    case "missing_anchor": {
+      const possible = getPossibleMatches(issue.anchor, issue.allAnchors);
+      return issue.reference + "\n\n" +
+        (possible.length
+          ? "Possible fix" + (possible.length > 1 ? "es" : "") + ": " + possible.map((anchor) => `\`${anchor}\``).join(", ")
+          : "");
+    }
     case "empty_anchor":
       return `${issue.reference}#`;
     case "no_response":
@@ -170,15 +178,24 @@ function makePrettyDetails(issue: Issue) {
       const anchorText = anchor ? "#" + anchor : "";
       return `Omit the extension \`${issue.extension}\` from \`${root}${anchorText}\``;
     }
+    case "local_alt_available":
+      return `${issue.reference}\n\n${issue.reason}`;
+    case "inaccessible":
+      return `${issue.reference}\n\n${issue.reason}`;
     default:
       throw new Error("Invalid type of issue! This shouldn't be happening.");
   }
 }
 
-function getEnv<T extends string>(...vars: T[]) {
-  return vars.reduce((result, variable): Record<T, string> => {
-    const value = Deno.env.get(variable);
-    if (value == null) throw new Error("Missing env var: " + variable);
-    return { ...result, [variable]: value };
-  }, {} as Record<T, string>);
+function getIssues() {
+  return readMarkdownFiles(dir, {
+    indexFile: "README.md",
+    isCleanUrl: true,
+    allowHtmlExtension: false,
+  });
+}
+
+function getGithubRepoName(path: string) {
+  const name = path.split("/")[3];
+  return name === "core" ? "grammY" : name;
 }

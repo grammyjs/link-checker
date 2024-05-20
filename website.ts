@@ -2,12 +2,12 @@ import { DOMParser } from "./deps/deno_dom.ts";
 import { anchorPlugin } from "./deps/markdown-it/anchor.ts";
 import { MarkdownIt } from "./deps/markdown-it/mod.ts";
 import { slugifyPlugin } from "./deps/markdown-it/slugify.ts";
-import { extname, join } from "./deps/std/path.ts";
+import { extname, join, relative, resolve } from "./deps/std/path.ts";
 import { blue, dim, magenta } from "./deps/std/fmt.ts";
 
-import { isValidAnchor, transformURL } from "./fetch.ts";
+import { checkExternalUrl, isValidAnchor, transformURL } from "./fetch.ts";
 import { Issue, MissingAnchorIssue } from "./types.ts";
-import { checkExternalUrl, getAnchors, parseLink, parseMarkdownContent } from "./utilities.ts";
+import { getAnchors, parseLink, parseMarkdownContent } from "./utilities.ts";
 import { findGroupedLinksIssues, GroupedLinksResolved, groupLinks, resolveGroupedLinks } from "./group_links.ts";
 
 const domParser = new DOMParser();
@@ -30,7 +30,7 @@ export async function readMarkdownFiles(
 ) {
   const issues: Record<string, Issue[]> = {};
   const allAnchors: Record<string, Set<string>> = {};
-  const usedAnchors: Record<string, typeof allAnchors> = {};
+  const usedAnchors: Record<string, Record<string, Set<[anchor: string, reference: string]>>> = {};
 
   // Checker tries to avoid fetching the same link again. When ignoring the
   // fetching after the first time, those files with the reference won't
@@ -47,7 +47,7 @@ export async function readMarkdownFiles(
 
       const filepath = join(directory, entry.name);
 
-      if (entry.isDirectory) {
+      if (entry.isDirectory && entry.name !== "node_modules") {
         await readDirectoryFiles(filepath);
         continue;
       }
@@ -71,12 +71,15 @@ export async function readMarkdownFiles(
       }
 
       for (const anchor of parsed.anchors.used) {
-        usedAnchors[filepath][filepath].add(anchor);
+        usedAnchors[filepath][filepath].add([anchor, "#" + anchor]);
       }
 
       // --- Relative Links (Local files) ---
       for (const localLink of parsed.links.local) {
-        const linkedFile = await checkRelativeLink(directory, localLink, {
+        const linkedFile = await checkRelativeLink(localLink, {
+          root: rootDirectory,
+          current: directory,
+        }, {
           indexFile: options.indexFile,
           isCleanUrl: options.isCleanUrl,
           allowHtmlExtension: options.allowHtmlExtension,
@@ -95,7 +98,7 @@ export async function readMarkdownFiles(
           }
           usedAnchors[linkedFile.path] ??= {};
           usedAnchors[linkedFile.path][filepath] ??= new Set();
-          usedAnchors[linkedFile.path][filepath].add(linkedFile.anchor);
+          usedAnchors[linkedFile.path][filepath].add([linkedFile.anchor, localLink]);
         }
       }
 
@@ -116,16 +119,27 @@ export async function readMarkdownFiles(
           issues[filepath].push(...externalLinkIssues[root]);
         }
 
+        // Force to use new API references
+        const url = new URL(root);
+        if (url.host === "deno.land" && /\/x\/grammy[a-z0-9_]*@?\/.+/.test(url.pathname)) {
+          issues[filepath] ??= [];
+          issues[filepath].push({
+            type: "local_alt_available",
+            reference: externalLink,
+            reason: "Replace the remote API reference link with the native API reference.",
+          });
+        }
+
         if (usedAnchors[root] != null) {
           usedAnchors[root][filepath] ??= new Set();
           if (anchor != null) {
-            usedAnchors[root][filepath].add(anchor);
+            usedAnchors[root][filepath].add([anchor, externalLink]);
           }
           continue;
         }
 
         usedAnchors[root] = {
-          [filepath]: new Set(anchor != null ? [anchor] : []),
+          [filepath]: new Set(anchor != null ? [[anchor, externalLink]] : []),
         };
 
         console.log(blue("fetch"), decodeURIComponent(transformURL(root)));
@@ -168,10 +182,12 @@ async function parseMarkdownFile(filepath: string) {
   for (const link of parsed.links) {
     if ((/^https?:/).test(link) && URL.canParse(link)) {
       links.external.add(link);
-    } else if (link.startsWith(".")) {
+    } else if (link.startsWith(".") || link.startsWith("/")) {
       links.local.add(link);
     } else if (link.startsWith("#")) {
       anchors.used.add(link.slice(1));
+    } else if (link.startsWith("mailto:")) {
+      continue;
     } else {
       issues.push({ type: "unknown_link_format", reference: link });
     }
@@ -181,16 +197,20 @@ async function parseMarkdownFile(filepath: string) {
 }
 
 async function checkRelativeLink(
-  directory: string,
   localLink: string,
+  dirInfo: { root: string; current: string },
   options: {
     indexFile: string;
     isCleanUrl: boolean;
     allowHtmlExtension: boolean;
   },
 ) {
+  localLink = decodeURIComponent(localLink);
   const issues: Issue[] = [];
-  let { root, anchor } = parseLink(localLink);
+  const normalizedLocalLink = decodeURIComponent(
+    localLink.startsWith("/") ? relative(resolve(dirInfo.current), resolve(join(dirInfo.root, "./", localLink))) : localLink,
+  );
+  let { root, anchor } = parseLink(normalizedLocalLink);
 
   if (options.isCleanUrl) {
     if (extname(root) === ".html") {
@@ -200,6 +220,8 @@ async function checkRelativeLink(
       issues.push({ type: "disallow_extension", reference: localLink, extension: "md" });
     } else if (root.endsWith("/")) {
       root += options.indexFile;
+    } else if ((!localLink.includes("#") && localLink.endsWith("/")) || localLink.includes("/#")) {
+      root += "/" + options.indexFile;
     } else {
       root += ".md";
     }
@@ -216,7 +238,7 @@ async function checkRelativeLink(
     }
   }
 
-  const path = join(directory, root);
+  const path = join(dirInfo.current, root);
   try {
     if (root.includes("//")) {
       throw new Deno.errors.NotFound();
@@ -225,7 +247,11 @@ async function checkRelativeLink(
     return { anchor, issues, path };
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
-      issues.push({ type: "linked_file_not_found", filepath: root });
+      issues.push({
+        type: "linked_file_not_found",
+        filepath: resolve(path),
+        reference: decodeURIComponent(localLink),
+      });
       return { anchor, issues, path };
     }
     throw error;
@@ -234,16 +260,16 @@ async function checkRelativeLink(
 
 function findMissingAnchors(
   allAnchors: Record<string, Set<string>>,
-  usedAnchors: Record<string, Record<string, Set<string>>>,
+  usedAnchors: Record<string, Record<string, Set<[anchor: string, reference: string]>>>,
 ): Record<string, MissingAnchorIssue[]> {
   const issues: Record<string, MissingAnchorIssue[]> = {};
   for (const link in usedAnchors) {
     const all = allAnchors[link] ?? new Set<string>();
     for (const fileWithAnchorMention in usedAnchors[link]) {
-      for (const anchor of usedAnchors[link][fileWithAnchorMention]) {
+      for (const [anchor, reference] of usedAnchors[link][fileWithAnchorMention]) {
         if (isValidAnchor(all, link, anchor)) continue;
         issues[fileWithAnchorMention] ??= [];
-        issues[fileWithAnchorMention].push({ type: "missing_anchor", anchor, reference: link });
+        issues[fileWithAnchorMention].push({ type: "missing_anchor", anchor, reference, allAnchors: all });
       }
     }
   }

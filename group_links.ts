@@ -12,10 +12,12 @@
  * @module
  */
 
+import { DEFAULT_GITHUB_API_ROOT } from "./constants.ts";
 import { DOMParser } from "./deps/deno_dom.ts";
 import { blue, dim, yellow } from "./deps/std/fmt.ts";
 
 import { ExternalLinkIssue } from "./types.ts";
+import { getEnv } from "./utilities.ts";
 import { fetchWithRetries, getAnchors, parseLink } from "./utilities.ts";
 
 interface GroupedLinks {
@@ -44,8 +46,10 @@ export interface GroupedLinksResolved {
 // worry about hitting rate limits. ceil(N=branches / 100) API calls per each
 // repository for getting all branches, and one for each file mentioned.
 
-const GITHUB_API_ROOT = "https://api.github.com";
-const GITHUB_TOKEN = Deno.env.get("GITHUB_TOKEN");
+const {
+  GITHUB_API_ROOT = DEFAULT_GITHUB_API_ROOT,
+  GITHUB_TOKEN,
+} = getEnv(true, "GITHUB_API_ROOT", "GITHUB_TOKEN");
 if (GITHUB_TOKEN == null) {
   console.info(
     `\n┃ ${yellow("Gentle reminder")}: It is recommended to set the GITHUB_TOKEN environment variable
@@ -201,7 +205,7 @@ export async function resolveGroupedLinks(
     if (anchor != null && anchors != null) { // it is already fetched.
       if (!anchors.has(anchor)) {
         resolved.githubRenderableFiles[repository].issues[branch][filepath].push(
-          { type: "missing_anchor", reference, anchor },
+          { type: "missing_anchor", reference, anchor, allAnchors: anchors },
         );
       }
       continue;
@@ -227,7 +231,7 @@ export async function resolveGroupedLinks(
     allAnchors.add("readme");
     if (anchor != null && !allAnchors.has(anchor)) {
       resolved.githubRenderableFiles[repository].issues[branch][filepath]
-        .push({ type: "missing_anchor", reference, anchor });
+        .push({ type: "missing_anchor", reference, anchor, allAnchors });
     }
 
     resolved.githubRenderableFiles[repository].anchors[branch] ??= {};

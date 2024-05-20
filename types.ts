@@ -1,21 +1,11 @@
+import { ISSUE_TYPES } from "./constants.ts";
 import type { MarkdownIt } from "./deps/markdown-it/mod.ts";
 
-type MarkdownItToken = ReturnType<
+export type MarkdownItToken = ReturnType<
   InstanceType<typeof MarkdownIt>["parse"]
 >[number];
 
-export const ISSUE_TYPES = [
-  "unknown_link_format",
-  "empty_dom",
-  "empty_anchor",
-  "no_response",
-  "not_ok_response",
-  "disallow_extension",
-  "wrong_extension",
-  "linked_file_not_found",
-  "redirected",
-  "missing_anchor",
-] as const;
+export type FetchOptions = Parameters<typeof fetch>[1];
 
 interface BaseIssue {
   type: typeof ISSUE_TYPES[number];
@@ -50,25 +40,46 @@ interface WrongExtensionIssue extends BaseIssue {
 interface LinkedFileNotFoundIssue {
   type: "linked_file_not_found";
   filepath: string;
+  reference: string;
 }
 interface RedirectedIssue {
   type: "redirected";
   from: string;
   to: string;
 }
-interface MissingAnchorIssue extends BaseIssue {
+export interface MissingAnchorIssue extends BaseIssue {
   type: "missing_anchor";
   anchor: string;
+  allAnchors: Set<string>;
+}
+interface PreferLocalLinkIssue extends BaseIssue {
+  type: "local_alt_available";
+  reference: string;
+  reason: string;
+}
+interface InaccessibleLinkIssue extends BaseIssue {
+  type: "inaccessible";
+  reference: string;
+  reason: string;
 }
 
-type ExternalLinkIssue =
+export type ExternalLinkIssue =
   | RedirectedIssue
   | NotOKResponseIssue
   | NoResponseIssue
   | MissingAnchorIssue
-  | EmptyDOMIssue;
+  | EmptyDOMIssue
+  | PreferLocalLinkIssue
+  | InaccessibleLinkIssue;
 
-type Issue =
+export type FixableIssue =
+  | RedirectedIssue
+  | EmptyAnchorIssue
+  | MissingAnchorIssue
+  | WrongExtensionIssue
+  | DisallowExtensionIssue;
+
+export type Issue =
   | ExternalLinkIssue
   | DisallowExtensionIssue
   | WrongExtensionIssue
@@ -76,10 +87,20 @@ type Issue =
   | UnknownLinkFormatIssue
   | EmptyAnchorIssue;
 
-interface ResponseInfo {
+export interface ResponseInfo {
   response?: Response | null;
   redirected: boolean;
   redirectedUrl: string; // may become useful later.
 }
 
-export type { ExternalLinkIssue, Issue, MarkdownItToken, MissingAnchorIssue, ResponseInfo };
+export interface Location {
+  line: number;
+  columns: number[];
+}
+
+export interface Stack {
+  filepath: string;
+  locations: Location[];
+}
+
+export type IssueWithStack = Issue & { stack: Stack[] };

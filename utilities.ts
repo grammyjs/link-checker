@@ -1,15 +1,17 @@
-import { DOMParser, HTMLDocument } from "./deps/deno_dom.ts";
-import { magenta, red } from "./deps/std/fmt.ts";
+import { HTMLDocument } from "./deps/deno_dom.ts";
 import { MarkdownIt } from "./deps/markdown-it/mod.ts";
+import { distance } from "./deps/jaro-winkler.ts";
 
-import { ACCEPTABLE_NOT_OK_STATUS, getFetchWithRetries, isValidRedirection, MANUAL_REDIRECTIONS, transformURL } from "./fetch.ts";
-import type { ExternalLinkIssue, MarkdownItToken } from "./types.ts";
+import { getFetchWithRetries } from "./fetch.ts";
+import type { MarkdownItToken } from "./types.ts";
+import { FETCH_OPTIONS } from "./constants.ts";
 
 const RETRY_FAILED_FETCH = true;
 const MAX_RETRIES = 5;
 const ID_TAGS = ["section", "h1", "h2", "h3", "h4", "h5", "h6", "div", "a"];
+const MINIMUM_DISTANCE = 0.8;
 
-export const fetchWithRetries = getFetchWithRetries(RETRY_FAILED_FETCH, MAX_RETRIES);
+export const fetchWithRetries = getFetchWithRetries(RETRY_FAILED_FETCH, MAX_RETRIES, FETCH_OPTIONS);
 
 export function parseMarkdownContent(mdit: MarkdownIt, content: string) {
   const html = mdit.render(content, {});
@@ -40,15 +42,16 @@ export function getAnchors(
   ]);
 }
 
-export function parseLink(href: string) {
+export function parseLink(href: string): { root: string; anchor?: string } {
   if (!URL.canParse(href)) { // looks like an local relative link
     const hashPos = href.lastIndexOf("#");
-    if (hashPos === -1) return { root: href, anchor: undefined };
-    return { root: href.substring(0, hashPos), anchor: href.substring(hashPos + 1) };
+    if (hashPos === -1) return { root: href };
+    return { root: href.substring(0, hashPos), anchor: decodeURIComponent(href.substring(hashPos + 1)) };
   }
   // not a relative link, hopefully external.
   const url = new URL(href);
-  const anchor = url.hash === "" ? undefined : url.hash.substring(1);
+  if (url.hash === "") return { root: url.href };
+  const anchor = decodeURIComponent(url.hash.substring(1));
   url.hash = "";
   return { root: url.href, anchor };
 }
@@ -58,7 +61,7 @@ function filterLinksFromTokens(tokens: MarkdownItToken[]) {
   for (const token of tokens) {
     if (token.type === "link_open") {
       const href = token.attrGet("href");
-      if (href != null) links.push(href);
+      if (href != null) links.push(decodeURIComponent(href));
     }
     if (token.children != null) {
       links.push(...filterLinksFromTokens(token.children));
@@ -67,46 +70,73 @@ function filterLinksFromTokens(tokens: MarkdownItToken[]) {
   return new Set(links);
 }
 
-export async function checkExternalUrl(url: string, utils: { domParser: DOMParser }) {
-  const issues: ExternalLinkIssue[] = [];
-  const transformed = transformURL(url);
-  const { response, redirected, redirectedUrl } = await fetchWithRetries(transformed);
-
-  if (response == null) {
-    issues.push({ type: "no_response", reference: transformed });
-    return { issues };
+export function getPossibleMatches(anchor: string, allAnchors: Set<string>) {
+  const matches: string[] = [];
+  for (const possible of allAnchors) {
+    const percent = distance(anchor.toLowerCase(), possible.toLowerCase());
+    if (percent >= MINIMUM_DISTANCE) matches.push(possible);
   }
+  return matches;
+}
 
-  if (redirected && MANUAL_REDIRECTIONS.includes(transformed)) {
-    return { issues };
+function getColumns(haystack: string, needle: string) {
+  const indices: number[] = [];
+  while (haystack.includes(needle)) {
+    const length = indices.push(haystack.indexOf(needle) + 1);
+    haystack = haystack.slice(indices[length - 1]);
   }
+  return indices;
+}
 
-  if (redirected && !isValidRedirection(new URL(transformed), new URL(redirectedUrl))) {
-    issues.push({ type: "redirected", from: transformed, to: response.url });
+// little grep (my own impl.)
+export async function findStringLocations(
+  filepath: string,
+  searchString: string,
+): Promise<[line: number, columns: number[], text: string][]> {
+  using file = await Deno.open(filepath, { read: true });
+  let tempLine = "";
+  let currentLine = 1;
+  const locations: [line: number, columns: number[], text: string][] = [];
+  const decoder = new TextDecoder();
+  for await (const chunk of file.readable) {
+    const decodedChunk = decoder.decode(chunk);
+    const lines = decodedChunk.split("\n");
+    tempLine += lines.shift();
+    if (lines.length <= 1) continue;
+    if (tempLine.includes(searchString)) {
+      locations.push([currentLine, getColumns(tempLine, searchString), tempLine]);
+    }
+    currentLine++;
+    tempLine = lines.pop()!;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.includes(searchString)) {
+        locations.push([currentLine, getColumns(line, searchString), line]);
+      }
+      currentLine++;
+    }
   }
+  return locations;
+}
 
-  if (!response.ok && ACCEPTABLE_NOT_OK_STATUS[url] !== response.status) {
-    issues.push({ type: "not_ok_response", reference: url, status: response.status, statusText: response.statusText });
-    console.log(red("not OK"), response.status, response.statusText);
-    return { issues };
-  }
+export function indentText(text: string, indentSize: number) {
+  const indent = " ".repeat(indentSize);
+  return text.includes("\n") ? text.split("\n").map((line) => indent + line).join("\n") : indent + text;
+}
 
-  const contentType = response.headers.get("content-type");
-  if (contentType == null) {
-    console.log(magenta("No Content-Type header was found in the response. Continuing anyway"));
-  } else if (!contentType.includes("text/html")) {
-    console.log(magenta(`Content-Type header is ${contentType}; continuing with HTML anyway`));
-  }
+export function getEnv<T extends string>(optional: boolean, ...vars: T[]) {
+  return vars.reduce((result, variable): Record<T, string> => {
+    const value = Deno.env.get(variable);
+    if (!optional && value == null) throw new Error("Missing env var: " + variable);
+    return { ...result, [variable]: value };
+  }, {} as Record<T, string>);
+}
 
-  try {
-    const content = await response.text();
-    const document = utils.domParser.parseFromString(content, "text/html");
-    if (document == null) throw new Error("Failed to parse the webpage: skipping");
-    const anchors = getAnchors(document, { includeHref: true });
-    return { issues, anchors, document };
-  } catch (error) {
-    issues.push({ type: "empty_dom", reference: url });
-    console.error(red("error:"), error);
-    return { issues };
-  }
+export function execute(command: string[], options?: Omit<Deno.CommandOptions, "args">) {
+  return new Deno.Command(command[0], { ...options, args: command.slice(1) });
+}
+
+export async function getCommitSha(repository: string) {
+  const output = (await execute(["git", "rev-parse", "HEAD"], { cwd: repository }).output()).stdout;
+  return new TextDecoder().decode(output).trim();
 }
