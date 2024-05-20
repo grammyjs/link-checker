@@ -57,7 +57,7 @@ export const DEFAULT_GITHUB_API_ROOT = "https://api.github.com";
 
 export const SEARCH_PANIC_MESSAGE = `\
 ====================================================================================
-PANIK. This shouldn't be happening. The search strings are supposed to have at least
+PANIC. This shouldn't be happening. The search strings are supposed to have at least
 one occurrence in the corresponding file. Please report this issue with enough
 information and context at: https://github.com/grammyjs/link-checker/issues/new.
 ====================================================================================`;

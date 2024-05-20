@@ -12,7 +12,7 @@ Link checker currently covers the following types of issues:
 - Empty anchors
 - Missing anchors
 - Non-OK responses
-- Wrong extensions
+- Wrong file extensions on internal links
 - Disallowed extensions
 - Unknown link types
 - Missing files
