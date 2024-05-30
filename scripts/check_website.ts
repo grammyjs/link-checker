@@ -1,11 +1,12 @@
 import { App } from "../deps/octokit_app.ts";
 import { join, relative, resolve } from "../deps/std/path.ts";
-import { readMarkdownFiles } from "../website.ts";
-import { ISSUE_DESCRIPTIONS, ISSUE_TITLES, processIssues } from "../issues.ts";
-import { execute, getCommitSha, getEnv, getPossibleMatches, parseLink } from "../utilities.ts";
-import { Issue, IssueWithStack, Stack } from "../types.ts";
-import { WARNING_ISSUE_TYPES } from "../constants.ts";
 import { parse, stringify } from "../deps/oson.ts";
+
+import { readMarkdownFiles } from "../website.ts";
+import { processIssues } from "../issues.ts";
+import { Issue, IssueWithStack, Stack } from "../types.ts";
+import { ISSUE_DESCRIPTIONS, ISSUE_TITLES, WARNING_ISSUE_TYPES } from "../constants.ts";
+import { execute, getCommitSha, getEnv, getPossibleMatches, parseLink } from "../utilities.ts";
 
 const env = getEnv(false, "APP_ID", "INSTALLATION_ID", "PRIVATE_KEY", "DIR");
 const REPO = { owner: "dcdunkan", repo: "website" };
@@ -192,6 +193,7 @@ function getIssues() {
     indexFile: "README.md",
     isCleanUrl: true,
     allowHtmlExtension: false,
+    includeRefDirectory: false,
   });
 }
 

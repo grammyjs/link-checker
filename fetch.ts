@@ -175,7 +175,7 @@ isn't included in the list of acknowledged Cloudflare protected list. Please add
   }
 
   if (redirected && !isValidRedirection(new URL(transformed), new URL(redirectedUrl))) {
-    issues.push({ type: "redirected", from: transformed, to: response.url });
+    issues.push({ type: "redirected", from: url, to: response.url });
   }
 
   if (!response.ok && ACCEPTABLE_NOT_OK_STATUS[url] !== response.status) {

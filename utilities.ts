@@ -43,17 +43,15 @@ export function getAnchors(
 }
 
 export function parseLink(href: string): { root: string; anchor?: string } {
-  if (!URL.canParse(href)) { // looks like an local relative link
-    const hashPos = href.lastIndexOf("#");
-    if (hashPos === -1) return { root: href };
-    return { root: href.substring(0, hashPos), anchor: decodeURIComponent(href.substring(hashPos + 1)) };
-  }
+  // if (!URL.canParse(href)) { // looks like an local relative link; TODO: add additional checks
+  //   const hashPos = href.indexOf("#");
+  //   if (hashPos === -1) return { root: href };
+  //   return { root: href.substring(0, hashPos), anchor: decodeURIComponent(href.substring(hashPos + 1)) };
+  // }
   // not a relative link, hopefully external.
-  const url = new URL(href);
-  if (url.hash === "") return { root: url.href };
-  const anchor = decodeURIComponent(url.hash.substring(1));
-  url.hash = "";
-  return { root: url.href, anchor };
+  const hashPos = href.indexOf("#");
+  if (hashPos == -1) return { root: href };
+  return { root: href.substring(0, hashPos), anchor: decodeURIComponent(href.substring(hashPos + 1)) };
 }
 
 function filterLinksFromTokens(tokens: MarkdownItToken[]) {
