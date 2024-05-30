@@ -27,8 +27,6 @@ and warns you about the issues it cannot handle at all:
 - Inaccessible websites:
   - Cloudflare protected websites
 
-# Documentation
-
 ## Checking Documentation
 
 To check for broken links in the [grammY documentation](https://github.com/grammyjs/website), clone the website repository and go
@@ -88,7 +86,7 @@ If the results auto-fix produces are wrong, please open an issue with enough det
 ### GitHub Files
 
 > [!IMPORTANT]
-> TLDR; Set the environment variable `GITHUB_TOKEN` if the documents contains a lot of links to GitHub markup (README, for example) files.
+> **TLDR;** Set the environment variable `GITHUB_TOKEN` if the documents contains a lot of links to GitHub markup (README, for example) files.
 > A fine-grained token with the default set of permissions will do.
 
 When you run the CLIs as mentioned you should get a gentle reminder about an environment variable: `GITHUB_TOKEN`.
@@ -108,7 +106,8 @@ For each repositories, `ceil(branches / 100)` number of API calls and for each f
 
 ### Launching in Debug Mode
 
-Debug mode doesn't do much for now, but will be integrated to being more useful in the future, I hope.
+> [!NOTE]
+> Debug mode doesn't do much for now, but will be integrated to being more useful in the future, I hope.
 
 As of now, launching in debug mode using `DEBUG` environment variable will cache issues to a file named `.link-checker` in the root directory.
 This eliminates the need of having to regenerate issues everytime by going through each link.
@@ -119,7 +118,8 @@ Also, useful to check what kind of issues are present, before --fixing them.
 
 ## Checking JSDocs
 
-NOTE: Haven't tested or maintained in a while; expecting bugs.
+> [!NOTE]
+> Haven't tested or maintained in a while; expecting bugs.
 
 Only the website repository has a special structure.
 All the other repositories that under grammY organization has JSDocs in their code and some contains external links.
