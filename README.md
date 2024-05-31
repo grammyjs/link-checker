@@ -1,24 +1,25 @@
 # Link Checker
 
 grammY's documentation contains a lot of links, like any other documentation.
-So, this is a tool for not only checking and reporting broken links, but also for suggesting fixes and fixing some of the broken ones.
+This is a tool for checking and reporting broken links in grammY docs.
+It can also suggest fixes and fix some of the broken ones by itself.
 link-checker is designed specifically for grammY's documentation, taking care of special cases found in the documentation.
-This tool can also check through JSDocs of other repositories, which contains code.
+This tool can also check through JSDocs of other repositories containing code.
 
 ### Issues Covered
 
 Link checker currently covers the following types of issues:
 
-- Redirections
 - Empty responses
+- Non-OK responses
 - Empty DOM contents
 - Empty anchors
 - Missing anchors
-- Non-OK responses
 - Wrong file extensions on internal links
 - Disallowed extensions
-- Unknown types of links
 - Missing files
+- Unknown types of links
+- Redirections
 - Better alternative available:
   - Inline API reference is available, but deno.land/x documentation is linked.
 
@@ -27,7 +28,7 @@ and warns you about the issues it cannot handle at all:
 - Inaccessible websites:
   - Cloudflare protected websites
 
-## Checking Documentation
+### Checking Documentation
 
 To check for broken links in the [grammY documentation](https://github.com/grammyjs/website), clone the website repository and go
 to the `site/docs/` directory and run the following:
@@ -71,13 +72,13 @@ Supported arguments:
 
 > [!CAUTION]
 > The fix implementation isn't flawless and probably is buggy, so carefully review the changes before committing.
-> Report any issues that you encounter in this repository.
+> Report any problems that you encounter by opening an issue in this repository.
 
 Issues of the following types can be fixed automatically by using the `--fix` argument:
 
 - Redirections: Replaces the link with the final redirected-to link.
 - Missing anchors: Replaces the missing anchor, with the closest match found among all the anchors.
-- Empty anchors: Gets rid of teh empty anchors.
+- Empty anchors: Gets rid of the empty anchors.
 - Wrong extensions: In non-clean-url mode, changes .html to .md in relative links.
 - Disallowed extensions: In clear-url mode, gets rid of extensions from relative links.
 
@@ -102,7 +103,9 @@ When normally fetched, their responses does not contain the actual content of th
 So for checking if the anchor is present, we fetch the content using the GitHub Content REST API.
 And that is why we need a GitHub access token. If you only have a few such links, then you most likely don’t need the token.
 
-For each repositories, `ceil(branches / 100)` number of API calls and for each file, an additional API call for the content is used.
+For each repositories, `ceil(branches / 100)` number of API calls and for each file, an additional API call for the content, is made.
+
+GitHub API root URL can also be changed if you prefer, by setting the `GITHUB_API_ROOT` environment variable.
 
 ### Launching in Debug Mode
 
