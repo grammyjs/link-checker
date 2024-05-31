@@ -1,6 +1,6 @@
 # Link Checker
 
-grammY's documentation contains a lot of links, like any other documentations.
+grammY's documentation contains a lot of links, like any other documentation.
 So, this is a tool for not only checking and reporting broken links, but also for suggesting fixes and fixing some of the broken ones.
 link-checker is designed specifically for grammY's documentation, taking care of special cases found in the documentation.
 This tool can also check through JSDocs of other repositories, which contains code.
