@@ -2,13 +2,14 @@ import { DOMParser } from "./deps/deno_dom.ts";
 import { anchorPlugin } from "./deps/markdown-it/anchor.ts";
 import { MarkdownIt } from "./deps/markdown-it/mod.ts";
 import { slugifyPlugin } from "./deps/markdown-it/slugify.ts";
-import { extname, join, relative, resolve } from "./deps/std/path.ts";
+import { basename, dirname, extname, join, relative, resolve } from "./deps/std/path.ts";
 import { blue, dim, magenta } from "./deps/std/fmt.ts";
 
 import { checkExternalUrl, isValidAnchor, transformURL } from "./fetch.ts";
 import { Issue, MissingAnchorIssue } from "./types.ts";
 import { getAnchors, parseLink, parseMarkdownContent } from "./utilities.ts";
 import { findGroupedLinksIssues, GroupedLinksResolved, groupLinks, resolveGroupedLinks } from "./group_links.ts";
+import { IGNORED_DIRECTORIES } from "./constants.ts";
 
 const domParser = new DOMParser();
 
@@ -26,6 +27,7 @@ export async function readMarkdownFiles(
     isCleanUrl: boolean;
     indexFile: string;
     allowHtmlExtension: boolean;
+    includeRefDirectory: boolean;
   },
 ) {
   const issues: Record<string, Issue[]> = {};
@@ -41,13 +43,19 @@ export async function readMarkdownFiles(
     githubRenderableFiles: {},
   };
 
+  function isDirectoryIgnored(directory: string): boolean {
+    // if (directory == "ref" && options.includeRefDirectory) return false;
+    return IGNORED_DIRECTORIES.includes(directory);
+  }
+
   async function readDirectoryFiles(directory: string) {
     for await (const entry of Deno.readDir(directory)) {
       if (!entry.isFile && !entry.isDirectory) continue;
 
       const filepath = join(directory, entry.name);
 
-      if (entry.isDirectory && entry.name !== "node_modules") {
+      if (entry.isDirectory) {
+        if (isDirectoryIgnored(entry.name)) continue;
         await readDirectoryFiles(filepath);
         continue;
       }
@@ -72,6 +80,11 @@ export async function readMarkdownFiles(
 
       for (const anchor of parsed.anchors.used) {
         usedAnchors[filepath][filepath].add([anchor, "#" + anchor]);
+      }
+
+      // if this file resides under the "ref" section and if /ref reporting is not enabled, then continue.
+      if ((basename(directory) === "ref" || basename(dirname(directory)) === "ref") && !options.includeRefDirectory) {
+        continue; // no need for checking the status of the links inside "ref" files.
       }
 
       // --- Relative Links (Local files) ---

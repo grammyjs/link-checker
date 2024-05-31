@@ -1,7 +1,8 @@
 {
   "lock": false,
   "fmt": {
-    "lineWidth": 130
+    "lineWidth": 130,
+    "proseWrap": "preserve"
   },
   "tasks": {
     "dev": "deno fmt && deno lint && deno check **/*.ts",

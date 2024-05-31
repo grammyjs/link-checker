@@ -19,4 +19,4 @@ jobs:
           INSTALLATION_ID: ${{ secrets.INSTALLATION_ID }}
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
           DIR: ${{ github.workspace }}
-        run: deno run --allow-net --allow-env --allow-read --allow-run scripts/check_website.ts 
+        run: deno run --allow-sys --allow-net --allow-env --allow-read --allow-run scripts/check_website.ts 

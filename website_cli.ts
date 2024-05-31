@@ -1,20 +1,21 @@
-import { FIXABLE_ISSUE_TYPES } from "./constants.ts";
+import { FIXABLE_ISSUE_TYPES, ISSUE_DESCRIPTIONS, ISSUE_TITLES } from "./constants.ts";
 import { parse, stringify } from "./deps/oson.ts";
 import { parseArgs, Spinner } from "./deps/std/cli.ts";
 import { blue, bold, cyan, dim, green, red, strikethrough, underline, yellow } from "./deps/std/fmt.ts";
 import { extname, join, resolve } from "./deps/std/path.ts";
 
-import { ISSUE_DESCRIPTIONS, ISSUE_TITLES, processIssues } from "./issues.ts";
+import { processIssues } from "./issues.ts";
 import { FixableIssue, Issue, IssueWithStack, Stack } from "./types.ts";
 import { execute, getPossibleMatches, indentText, parseLink } from "./utilities.ts";
 import { readMarkdownFiles } from "./website.ts";
 
 const args = parseArgs(Deno.args, {
-  boolean: ["clean-url", "allow-ext-html", "fix"],
+  boolean: ["clean-url", "allow-ext-html", "fix", "include-ref"],
   string: ["index-file"],
   default: {
     "index-file": "README.md",
     "allow-ext-html": false,
+    "include-ref": false,
   },
 });
 
@@ -194,6 +195,7 @@ function getIssues() {
     isCleanUrl: args["clean-url"],
     indexFile: args["index-file"],
     allowHtmlExtension: args["allow-ext-html"],
+    includeRefDirectory: args["include-ref"],
   });
 }
 
