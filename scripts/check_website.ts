@@ -97,7 +97,7 @@ async function updateIssue(number: number, body: string) {
   return res.status === 200;
 }
 
-function generateStackTrace(stacktrace: Stack[]) {
+function generateStackTrace(stacktrace: Stack[]): string {
   return stacktrace.map((stack) =>
     stack.locations.map((location) =>
       location.columns.map((column) => {
@@ -105,7 +105,7 @@ function generateStackTrace(stacktrace: Stack[]) {
         return `- <samp>**${path}**:${location.line}:${column} ` + (
           path.split("/")[2] !== "ref"
             ? `[[src](https://github.com/${REPO.owner}/${REPO.repo}/blob/${COMMIT_SHA}/${path}?plain=1#L${location.line}C${column})]</samp>`
-            : `[[original source](https://github.com/grammyjs/${getGithubRepoName(path)})]`
+            : `[[original source](https://github.com/grammyjs/${getGithubRepoName(path)})]` // redundant, ik.
         );
       })
     ).flat()
@@ -130,10 +130,15 @@ Please review the report below and close this issue once the fixes are made.
     report += "### " + title + " (" + grouped[type].length + ")\n\n";
     report += ISSUE_DESCRIPTIONS[type].split("\n").join(" ");
     report += "\n\n<details><summary>Show the issues</summary>";
-    for (const { stack, ...details } of grouped[type]) {
+    const sorted = grouped[type].map(({ stack, ...details }) => {
+      const pretty = makePrettyDetails(details);
+      const stacktrace = generateStackTrace(stack);
+      return { details: pretty, stacktrace };
+    }).sort((a, b) => a.details.localeCompare(b.details));
+    for (const { details, stacktrace } of sorted) {
       report += "\n\n";
-      report += "- [ ] " + indentText(makePrettyDetails(details), 5).slice(5);
-      report += "\n\n" + indentText(generateStackTrace(stack), 5);
+      report += "- [ ] " + indentText(details, 5).slice(5);
+      report += "\n\n" + indentText(stacktrace, 5);
     }
     report += "\n</details>\n\n";
     total += grouped[type].length;
@@ -143,7 +148,7 @@ Please review the report below and close this issue once the fixes are made.
 }
 
 // Make sure the strings returned are ONE LINERS
-function makePrettyDetails(issue: Issue) {
+function makePrettyDetails(issue: Issue): string {
   if ("reference" in issue) issue.reference = decodeURI(issue.reference);
   if ("to" in issue) issue.to = decodeURI(issue.to), issue.from = decodeURI(issue.from);
 
