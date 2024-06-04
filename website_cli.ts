@@ -1,4 +1,4 @@
-import { FIXABLE_ISSUE_TYPES, ISSUE_DESCRIPTIONS, ISSUE_TITLES } from "./constants.ts";
+import { FIXABLE_ISSUE_TYPES, ISSUE_DESCRIPTIONS, ISSUE_TITLES, WARNING_ISSUE_TYPES } from "./constants.ts";
 import { parse, stringify } from "./deps/oson.ts";
 import { parseArgs, Spinner } from "./deps/std/cli.ts";
 import { blue, bold, cyan, dim, green, red, strikethrough, underline, yellow } from "./deps/std/fmt.ts";
@@ -183,10 +183,12 @@ for (const type of getIssueTypes()) {
 }
 
 const current = getTotal();
-if (current == 0) Deno.exit(0);
-
-console.log(`Checking completed and found ${bold(getTotal().toString())} issues.`);
+console.log(`Checking completed and found ${bold(current.toString())} issues.`);
 if (args.fix) console.log(`Fixed issues in ${bold(fixed.toString())} places.`);
+
+if (current == 0 || getIssueTypes().every((type) => WARNING_ISSUE_TYPES.includes(type))) {
+  Deno.exit(0); // print the warnings but exit successfully, dont fail the check
+}
 
 Deno.exit(1);
 
