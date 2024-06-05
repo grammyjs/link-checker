@@ -4,6 +4,7 @@ import { MarkdownIt } from "./deps/markdown-it/mod.ts";
 import { slugifyPlugin } from "./deps/markdown-it/slugify.ts";
 import { basename, dirname, extname, join, relative, resolve } from "./deps/std/path.ts";
 import { blue, dim, magenta } from "./deps/std/fmt.ts";
+import { strom } from "./deps/strom.ts";
 
 import { checkExternalUrl, isValidAnchor, transformURL } from "./fetch.ts";
 import { Issue, MissingAnchorIssue } from "./types.ts";
@@ -124,7 +125,7 @@ export async function readMarkdownFiles(
       }
 
       // --- External Links ---
-      for (const externalLink of groupedLinks.other) {
+      await strom(groupedLinks.other).map(async (externalLink) => {
         const { root, anchor } = parseLink(externalLink);
 
         if (externalLinkIssues[root] != null && externalLinkIssues[root].length > 0) {
@@ -148,7 +149,7 @@ export async function readMarkdownFiles(
           if (anchor != null) {
             usedAnchors[root][filepath].add([anchor, externalLink]);
           }
-          continue;
+          return;
         }
 
         usedAnchors[root] = {
@@ -167,7 +168,7 @@ export async function readMarkdownFiles(
         if (checkedExternalLink.anchors != null) {
           allAnchors[root] = checkedExternalLink.anchors;
         }
-      }
+      }).parallel(10).run().task();
     }
   }
 
