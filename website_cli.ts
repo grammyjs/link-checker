@@ -10,12 +10,13 @@ import { execute, getPossibleMatches, indentText, parseLink } from "./utilities.
 import { readMarkdownFiles } from "./website.ts";
 
 const args = parseArgs(Deno.args, {
-  boolean: ["clean-url", "allow-ext-html", "fix", "include-ref"],
+  boolean: ["clean-url", "allow-ext-html", "fix", "include-ref", "ignore-warnings"],
   string: ["index-file"],
   default: {
     "index-file": "README.md",
     "allow-ext-html": false,
     "include-ref": false,
+    "ignore-warnings": false,
   },
 });
 
@@ -48,31 +49,41 @@ if (args.fix) {
   );
 }
 
-let issues: Record<string, Issue[]> = {};
+let grouped: Record<Issue["type"], IssueWithStack[]>;
+
 if (Deno.env.get("DEBUG") != null) {
   console.log("=== DEBUGGING MODE ===");
   try {
     console.log("reading the cache file");
-    issues = parse(await Deno.readTextFile("./.link-checker"));
+    grouped = parse(await Deno.readTextFile("./.link-checker"));
   } catch (_error) {
     console.log("failed to read the cache file");
-    issues = await getIssues();
-    await Deno.writeTextFile("./.link-checker", stringify(issues));
+    const issues = await getIssues();
+    grouped = await processIssues(issues);
+    await Deno.writeTextFile("./.link-checker", stringify(grouped));
     console.log("cache file created and will be used next time debugging");
   }
 } else {
   console.log("Reading files and checking for bad links...");
-  issues = await getIssues();
+  const issues = await getIssues();
+  grouped = await processIssues(issues);
 }
 
-if (Object.keys(issues).length === 0) {
+const getIssueTypes = () =>
+  (Object.keys(grouped) as Issue["type"][])
+    .filter((type) => !(WARNING_ISSUE_TYPES.includes(type) && args["ignore-warnings"]));
+
+const getTotal = () => getIssueTypes().reduce((total, type) => total + grouped[type].length, 0);
+
+if (args["ignore-warnings"]) {
+  const count = WARNING_ISSUE_TYPES.reduce((p, type) => p + grouped[type].length, 0);
+  console.log(yellow("--ignore-warnings:"), `ignoring ${count} warnings`);
+}
+
+if (getIssueTypes().length === 0) {
   console.log(green("Found no issues with links in the documentation!"));
   Deno.exit(0);
 }
-
-const grouped = await processIssues(issues);
-const getIssueTypes = () => Object.keys(grouped) as Issue["type"][];
-const getTotal = () => getIssueTypes().reduce((total, type) => total + grouped[type].length, 0);
 
 const initial = getTotal();
 console.log("\n" + red(bold(`Found ${initial} issues across the documentation:`)));
@@ -167,6 +178,11 @@ if (args.fix) {
 
   spinner.stop();
   console.log(green("done"), `resolved ${initial - getTotal()} issues completely and fixed problems in ${fixed} places.`);
+
+  if (fixed > 0) {
+    await Deno.writeTextFile("./.link-checker", stringify(grouped));
+    console.log("cache file was updated to reflect the changes made by --fix");
+  }
 }
 
 for (const type of getIssueTypes()) {
