@@ -25,6 +25,7 @@ if (args._.length > 1) {
 }
 
 const rootDirectory = (args._[0] ?? ".").toString();
+const cacheFile = join(rootDirectory, ".link-checker");
 
 try {
   const result = await Deno.lstat(join(rootDirectory, "ref"));
@@ -55,12 +56,12 @@ if (Deno.env.get("DEBUG") != null) {
   console.log("=== DEBUGGING MODE ===");
   try {
     console.log("reading the cache file");
-    grouped = parse(await Deno.readTextFile("./.link-checker"));
+    grouped = parse(await Deno.readTextFile(cacheFile));
   } catch (_error) {
     console.log("failed to read the cache file");
     const issues = await getIssues();
     grouped = await processIssues(issues);
-    await Deno.writeTextFile("./.link-checker", stringify(grouped));
+    await Deno.writeTextFile(cacheFile, stringify(grouped));
     console.log("cache file created and will be used next time debugging");
   }
 } else {
@@ -180,7 +181,7 @@ if (args.fix) {
   console.log(green("done"), `resolved ${initial - getTotal()} issues completely and fixed problems in ${fixed} places.`);
 
   if (fixed > 0) {
-    await Deno.writeTextFile("./.link-checker", stringify(grouped));
+    await Deno.writeTextFile(cacheFile, stringify(grouped));
     console.log("cache file was updated to reflect the changes made by --fix");
   }
 }
