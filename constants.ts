@@ -41,7 +41,7 @@ export const MANUAL_REDIRECTIONS: string[] = [
 
 /** Websites protected by Cloudflare's DDos Protection Services */
 export const CLOUDFLARE_PROTECTED: string[] = [
-  "www.scaleway.com",
+  // "www.scaleway.com",
 ];
 
 export const FETCH_OPTIONS = {
