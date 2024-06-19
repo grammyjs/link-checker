@@ -44,21 +44,21 @@ $ deno run --allow-env --allow-net --allow-read \
 Supported arguments:
 
 - `--clean-url`
-  
+
   Defaults to `false`.
   VitePress’ clean URL config option makes sure that the references to other local files doesn’t end with an extension.
   Specify this option if the configuration used in the website repository has this option enabled.
 - `--index-file`
-  
+
   Defaults to `README.md`.
   Index file of a directory.
 - `--allow-ext-html`
-  
+
   Defaults to `false`.
   Not needed if `--clean-url` is specified.
   Allows `.html` extension to be used to reference other local files.
 - `--fix`
-  
+
   Fix some of the broken links using this flag.
   Refer to ["Automatically fixing issues"](#automatically-fixing-issues).
 - `--include-ref`

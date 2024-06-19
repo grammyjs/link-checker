@@ -1,11 +1,12 @@
 {
-  "lock": false,
-  "fmt": {
-    "lineWidth": 130,
-    "proseWrap": "preserve"
-  },
-  "tasks": {
-    "dev": "deno fmt && deno lint && deno check **/*.ts",
-    "test": "deno test --allow-env --allow-read"
-  }
+    "lock": false,
+    "fmt": {
+        "lineWidth": 130,
+        "indentWidth": 4,
+        "proseWrap": "preserve"
+    },
+    "tasks": {
+        "dev": "deno fmt && deno lint && deno check **/*.ts",
+        "test": "deno test --allow-env --allow-read"
+    }
 }

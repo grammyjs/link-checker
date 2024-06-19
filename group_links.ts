@@ -21,11 +21,11 @@ import { getEnv } from "./utilities.ts";
 import { fetchWithRetries, getAnchors, parseLink } from "./utilities.ts";
 
 interface GroupedLinks {
-  githubRenderableFiles: Set<GithubFileLink>;
-  other: Set<string>;
+    githubRenderableFiles: Set<GithubFileLink>;
+    other: Set<string>;
 }
 export interface GroupedLinksResolved {
-  githubRenderableFiles: GithubFiles; // repo -> branch -> filepath -> anchors
+    githubRenderableFiles: GithubFiles; // repo -> branch -> filepath -> anchors
 }
 
 // === GROUP 1: GITHUB RENDERABLE FILE LINKS ===
@@ -47,206 +47,206 @@ export interface GroupedLinksResolved {
 // repository for getting all branches, and one for each file mentioned.
 
 const {
-  GITHUB_API_ROOT = DEFAULT_GITHUB_API_ROOT,
-  GITHUB_TOKEN,
+    GITHUB_API_ROOT = DEFAULT_GITHUB_API_ROOT,
+    GITHUB_TOKEN,
 } = getEnv(true, "GITHUB_API_ROOT", "GITHUB_TOKEN");
 if (GITHUB_TOKEN == null) {
-  console.info(
-    `\n┃ ${yellow("Gentle reminder")}: It is recommended to set the GITHUB_TOKEN environment variable
+    console.info(
+        `\n┃ ${yellow("Gentle reminder")}: It is recommended to set the GITHUB_TOKEN environment variable
 ┃ if there are GitHub repository file links in the documents.\n`,
-  );
+    );
 }
 
 interface GithubFileLink {
-  repository: string;
-  path: string;
-  /** Original link referenced in the document */
-  originalReference: string;
-  /** Is the file a directory README file */
-  isDirREADME: boolean;
+    repository: string;
+    path: string;
+    /** Original link referenced in the document */
+    originalReference: string;
+    /** Is the file a directory README file */
+    isDirREADME: boolean;
 }
 type GithubFiles = Record<string, {
-  allBranches: string[];
-  anchors: Record<string, Record<string, Set<string>>>;
-  issues: Record<string, Record<string, ExternalLinkIssue[]>>;
-  // structure:  branch ------> file -> anchors
+    allBranches: string[];
+    anchors: Record<string, Record<string, Set<string>>>;
+    issues: Record<string, Record<string, ExternalLinkIssue[]>>;
+    // structure:  branch ------> file -> anchors
 }>;
 
 // "tree" is the key
 export function isGithubReadmeWithAnchorUrl(url: URL) {
-  if (url.hostname !== "github.com" || url.hash.length < 2) return false; // fast path
-  if (url.hash === "#readme") return true;
-  const segments = url.pathname.split("/");
-  if (segments.at(-1) === "") segments.pop();
-  return segments.length === 3 || (segments[3] === "tree" && segments.length >= 5);
+    if (url.hostname !== "github.com" || url.hash.length < 2) return false; // fast path
+    if (url.hash === "#readme") return true;
+    const segments = url.pathname.split("/");
+    if (segments.at(-1) === "") segments.pop();
+    return segments.length === 3 || (segments[3] === "tree" && segments.length >= 5);
 }
 
 // "blob" is the key
 function isGithubRenderableFileWithAnchorUrl(url: URL) {
-  if (url.hostname !== "github.com") return false; // fast path
-  const segments = url.pathname.split("/");
-  if (segments.at(-1) === "") segments.pop();
-  return url.hash.length > 1 && segments[3] === "blob" && segments.length > 5;
+    if (url.hostname !== "github.com") return false; // fast path
+    const segments = url.pathname.split("/");
+    if (segments.at(-1) === "") segments.pop();
+    return url.hash.length > 1 && segments[3] === "blob" && segments.length > 5;
 }
 
 function parseGithubUrl(url: URL) {
-  const segments = url.pathname.split("/");
-  while (segments.at(-1)?.trim() === "") segments.pop();
-  const repository = segments.slice(1, 3).join("/");
-  const path = segments.length === 3 ? "" : segments.slice(4).join("/");
-  return { repository, path };
+    const segments = url.pathname.split("/");
+    while (segments.at(-1)?.trim() === "") segments.pop();
+    const repository = segments.slice(1, 3).join("/");
+    const path = segments.length === 3 ? "" : segments.slice(4).join("/");
+    return { repository, path };
 }
 
 function parseGithubFilepathWithBranch(path: string, branches: string[]) {
-  let finalSegments: string[] = [];
-  const sortedBranches = branches.sort((b0, b1) => b0.localeCompare(b1));
-  for (const branch of sortedBranches) {
-    const branchSegs = branch.split("/");
-    const pathSegs = path.split("/");
-    const currentSegs: string[] = [];
-    for (let i = 0; i < branchSegs.length; i++) {
-      if (branchSegs[i] !== pathSegs[i]) continue;
-      currentSegs.push(branchSegs[i]);
+    let finalSegments: string[] = [];
+    const sortedBranches = branches.sort((b0, b1) => b0.localeCompare(b1));
+    for (const branch of sortedBranches) {
+        const branchSegs = branch.split("/");
+        const pathSegs = path.split("/");
+        const currentSegs: string[] = [];
+        for (let i = 0; i < branchSegs.length; i++) {
+            if (branchSegs[i] !== pathSegs[i]) continue;
+            currentSegs.push(branchSegs[i]);
+        }
+        if (branchSegs.length === currentSegs.length) finalSegments = currentSegs;
     }
-    if (branchSegs.length === currentSegs.length) finalSegments = currentSegs;
-  }
-  const branch = finalSegments.length > 0 ? finalSegments.join("/") : undefined;
-  const filepath = path.slice(branch ? branch.length + 1 : 0);
-  return { branch, filepath };
+    const branch = finalSegments.length > 0 ? finalSegments.join("/") : undefined;
+    const filepath = path.slice(branch ? branch.length + 1 : 0);
+    return { branch, filepath };
 }
 
 async function getBranches(repo: string) {
-  let page = 1, continueFetching = true;
-  const branchNames: string[] = [];
-  do {
-    const query = `GET /repos/${repo}/branches?per_page=100&page=${page++}`;
-    console.log(dim(`  Getting branches of ${repo} (page 1)`));
-    const branches = await makeGithubAPIRequest<Array<{ name: string }>>(query) ?? [];
-    branchNames.push(...branches.map((branch) => branch.name));
-    if (branches.length < 100) continueFetching = false;
-  } while (continueFetching);
-  return branchNames;
+    let page = 1, continueFetching = true;
+    const branchNames: string[] = [];
+    do {
+        const query = `GET /repos/${repo}/branches?per_page=100&page=${page++}`;
+        console.log(dim(`  Getting branches of ${repo} (page 1)`));
+        const branches = await makeGithubAPIRequest<Array<{ name: string }>>(query) ?? [];
+        branchNames.push(...branches.map((branch) => branch.name));
+        if (branches.length < 100) continueFetching = false;
+    } while (continueFetching);
+    return branchNames;
 }
 
 function getREADME(repo: string, path: string, branch: string) {
-  console.log(dim(`  Getting renderable README file (${repo}${branch ? `#${branch}` : ""})`));
-  return makeGithubAPIRequest<string>(
-    `GET /repos/${repo}/readme/${path}${branch !== "" ? `?ref=${branch}` : ""}`,
-    "application/vnd.github.html",
-  );
+    console.log(dim(`  Getting renderable README file (${repo}${branch ? `#${branch}` : ""})`));
+    return makeGithubAPIRequest<string>(
+        `GET /repos/${repo}/readme/${path}${branch !== "" ? `?ref=${branch}` : ""}`,
+        "application/vnd.github.html",
+    );
 }
 
 function getRenderedGithubFile(repo: string, path: string, branch: string) {
-  console.log(dim(`  Getting renderable file (${repo}#${branch}/${path})`));
-  return makeGithubAPIRequest<string>(
-    `GET /repos/${repo}/contents/${path}${branch !== "" ? `?ref=${branch}` : ""}`,
-    "application/vnd.github.html",
-  );
+    console.log(dim(`  Getting renderable file (${repo}#${branch}/${path})`));
+    return makeGithubAPIRequest<string>(
+        `GET /repos/${repo}/contents/${path}${branch !== "" ? `?ref=${branch}` : ""}`,
+        "application/vnd.github.html",
+    );
 }
 
 async function makeGithubAPIRequest<T>(query: string, mediaType = "application/vnd.github+json") {
-  const [method, ...path] = query.split(" ");
-  const url = GITHUB_API_ROOT + path.join(" ");
-  const headers = new Headers({ "Accept": mediaType, "X-GitHub-Api-Version": "2022-11-28" });
-  if (GITHUB_TOKEN != null && GITHUB_TOKEN.trim() !== "") headers.set("Authorization", `Bearer ${GITHUB_TOKEN}`);
-  const { response } = await fetchWithRetries(url, { method, headers });
-  if (response == null || response.status === 404) return undefined;
-  if (!response.ok) throw new Error(response.statusText);
-  return (mediaType === "application/vnd.github.html" ? response.text() : response.json()) as T;
+    const [method, ...path] = query.split(" ");
+    const url = GITHUB_API_ROOT + path.join(" ");
+    const headers = new Headers({ "Accept": mediaType, "X-GitHub-Api-Version": "2022-11-28" });
+    if (GITHUB_TOKEN != null && GITHUB_TOKEN.trim() !== "") headers.set("Authorization", `Bearer ${GITHUB_TOKEN}`);
+    const { response } = await fetchWithRetries(url, { method, headers });
+    if (response == null || response.status === 404) return undefined;
+    if (!response.ok) throw new Error(response.statusText);
+    return (mediaType === "application/vnd.github.html" ? response.text() : response.json()) as T;
 }
 
 export function groupLinks(urls: Set<string>): GroupedLinks {
-  const githubRenderableFiles = new Set<GithubFileLink>();
-  const other = new Set<string>();
+    const githubRenderableFiles = new Set<GithubFileLink>();
+    const other = new Set<string>();
 
-  for (const href of urls) {
-    const url = new URL(href);
-    if (isGithubReadmeWithAnchorUrl(url)) {
-      githubRenderableFiles.add({
-        ...parseGithubUrl(url),
-        originalReference: href,
-        isDirREADME: true,
-      });
-    } else if (isGithubRenderableFileWithAnchorUrl(url)) {
-      githubRenderableFiles.add({
-        ...parseGithubUrl(url),
-        originalReference: href,
-        isDirREADME: false,
-      });
-    } else {
-      other.add(href);
+    for (const href of urls) {
+        const url = new URL(href);
+        if (isGithubReadmeWithAnchorUrl(url)) {
+            githubRenderableFiles.add({
+                ...parseGithubUrl(url),
+                originalReference: href,
+                isDirREADME: true,
+            });
+        } else if (isGithubRenderableFileWithAnchorUrl(url)) {
+            githubRenderableFiles.add({
+                ...parseGithubUrl(url),
+                originalReference: href,
+                isDirREADME: false,
+            });
+        } else {
+            other.add(href);
+        }
     }
-  }
 
-  return { githubRenderableFiles, other };
+    return { githubRenderableFiles, other };
 }
 
 export async function resolveGroupedLinks(
-  links: GroupedLinks,
-  resolved: GroupedLinksResolved,
-  utils: { domParser: DOMParser },
+    links: GroupedLinks,
+    resolved: GroupedLinksResolved,
+    utils: { domParser: DOMParser },
 ) {
-  // ==== Github Renderable files ====
-  for (const { repository, path, originalReference, isDirREADME } of links.githubRenderableFiles) {
-    const { root: reference, anchor } = parseLink(originalReference);
-    console.log(blue("fetch"), decodeURIComponent(originalReference));
+    // ==== Github Renderable files ====
+    for (const { repository, path, originalReference, isDirREADME } of links.githubRenderableFiles) {
+        const { root: reference, anchor } = parseLink(originalReference);
+        console.log(blue("fetch"), decodeURIComponent(originalReference));
 
-    if (!(repository in resolved.githubRenderableFiles)) {
-      const allBranches = await getBranches(repository);
-      resolved.githubRenderableFiles[repository] = { allBranches, anchors: {}, issues: {} };
-    }
-    const branches = resolved.githubRenderableFiles[repository].allBranches;
-    const { filepath, branch = "" } = parseGithubFilepathWithBranch(path, branches);
-    resolved.githubRenderableFiles[repository].issues[branch] ??= {};
-    resolved.githubRenderableFiles[repository].issues[branch][filepath] ??= [];
+        if (!(repository in resolved.githubRenderableFiles)) {
+            const allBranches = await getBranches(repository);
+            resolved.githubRenderableFiles[repository] = { allBranches, anchors: {}, issues: {} };
+        }
+        const branches = resolved.githubRenderableFiles[repository].allBranches;
+        const { filepath, branch = "" } = parseGithubFilepathWithBranch(path, branches);
+        resolved.githubRenderableFiles[repository].issues[branch] ??= {};
+        resolved.githubRenderableFiles[repository].issues[branch][filepath] ??= [];
 
-    // If its an already fetched file
-    const anchors = resolved.githubRenderableFiles[repository].anchors[branch]?.[filepath];
-    if (anchor != null && anchors != null) { // it is already fetched.
-      if (!anchors.has(anchor)) {
-        resolved.githubRenderableFiles[repository].issues[branch][filepath].push(
-          { type: "missing_anchor", reference, anchor, allAnchors: anchors },
-        );
-      }
-      continue;
-    }
+        // If its an already fetched file
+        const anchors = resolved.githubRenderableFiles[repository].anchors[branch]?.[filepath];
+        if (anchor != null && anchors != null) { // it is already fetched.
+            if (!anchors.has(anchor)) {
+                resolved.githubRenderableFiles[repository].issues[branch][filepath].push(
+                    { type: "missing_anchor", reference, anchor, allAnchors: anchors },
+                );
+            }
+            continue;
+        }
 
-    // Haven't been fetched before. Manage that:
-    const readme = isDirREADME
-      ? await getREADME(repository, filepath, branch)
-      : await getRenderedGithubFile(repository, filepath, branch);
-    if (readme == null) {
-      resolved.githubRenderableFiles[repository].issues[branch][filepath]
-        .push({ type: "not_ok_response", status: 404, reference, statusText: "Not found" });
-      continue;
-    }
-    const document = utils.domParser.parseFromString(readme, "text/html");
-    if (document == null) {
-      resolved.githubRenderableFiles[repository].issues[branch][filepath]
-        .push({ type: "empty_dom", reference });
-      continue;
-    }
+        // Haven't been fetched before. Manage that:
+        const readme = isDirREADME
+            ? await getREADME(repository, filepath, branch)
+            : await getRenderedGithubFile(repository, filepath, branch);
+        if (readme == null) {
+            resolved.githubRenderableFiles[repository].issues[branch][filepath]
+                .push({ type: "not_ok_response", status: 404, reference, statusText: "Not found" });
+            continue;
+        }
+        const document = utils.domParser.parseFromString(readme, "text/html");
+        if (document == null) {
+            resolved.githubRenderableFiles[repository].issues[branch][filepath]
+                .push({ type: "empty_dom", reference });
+            continue;
+        }
 
-    const allAnchors = getAnchors(document, { includeHref: true });
-    allAnchors.add("readme");
-    if (anchor != null && !allAnchors.has(anchor)) {
-      resolved.githubRenderableFiles[repository].issues[branch][filepath]
-        .push({ type: "missing_anchor", reference, anchor, allAnchors });
-    }
+        const allAnchors = getAnchors(document, { includeHref: true });
+        allAnchors.add("readme");
+        if (anchor != null && !allAnchors.has(anchor)) {
+            resolved.githubRenderableFiles[repository].issues[branch][filepath]
+                .push({ type: "missing_anchor", reference, anchor, allAnchors });
+        }
 
-    resolved.githubRenderableFiles[repository].anchors[branch] ??= {};
-    resolved.githubRenderableFiles[repository].anchors[branch][filepath] = allAnchors;
-  }
+        resolved.githubRenderableFiles[repository].anchors[branch] ??= {};
+        resolved.githubRenderableFiles[repository].anchors[branch][filepath] = allAnchors;
+    }
 }
 
 export function findGroupedLinksIssues(grouped: GroupedLinks, resolved: GroupedLinksResolved) {
-  const issues: ExternalLinkIssue[] = [];
-  for (const { repository, path } of grouped.githubRenderableFiles) {
-    const repoDetails = resolved.githubRenderableFiles[repository];
-    const { filepath, branch = "" } = parseGithubFilepathWithBranch(path, repoDetails.allBranches);
-    issues.push(...repoDetails.issues[branch][filepath]);
-  }
-  return issues;
+    const issues: ExternalLinkIssue[] = [];
+    for (const { repository, path } of grouped.githubRenderableFiles) {
+        const repoDetails = resolved.githubRenderableFiles[repository];
+        const { filepath, branch = "" } = parseGithubFilepathWithBranch(path, repoDetails.allBranches);
+        issues.push(...repoDetails.issues[branch][filepath]);
+    }
+    return issues;
 }
 
 // TODO
