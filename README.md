@@ -67,6 +67,9 @@ Supported arguments:
   The /ref directory contains the generated API references of core and plugins.
   The sources of these documentation comes from other repositories, so they're not checked here by default.
   But in case, if you wanted to check these right in the website for some reason, toggle this flag.
+- `--ignore-warnings`
+
+  Ignore warning types while printing the issues.
 
 ### Automatically Fixing Issues
 
