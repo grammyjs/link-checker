@@ -70,11 +70,13 @@ if (Deno.env.get("DEBUG") != null) {
     grouped = await processIssues(issues);
 }
 
-const getIssueTypes = () =>
-    (Object.keys(grouped) as Issue["type"][])
-        .filter((type) => !(WARNING_ISSUE_TYPES.includes(type) && args["ignore-warnings"]));
+const getIssueTypes = () => (Object.keys(grouped) as Issue["type"][]);
+//       .filter((type) => !(WARNING_ISSUE_TYPES.includes(type) && args["ignore-warnings"]));
 
-const getTotal = () => getIssueTypes().reduce((total, type) => total + grouped[type].length, 0);
+const getTotal = () =>
+    getIssueTypes()
+        .filter((type) => !WARNING_ISSUE_TYPES.includes(type))
+        .reduce((total, type) => total + grouped[type].length, 0);
 
 if (args["ignore-warnings"]) {
     const count = WARNING_ISSUE_TYPES.reduce((p, type) => p + grouped[type].length, 0);
@@ -189,21 +191,24 @@ if (args.fix) {
     }
 }
 
-for (const type of getIssueTypes()) {
-    const title = ISSUE_TITLES[type];
+console.log();
 
-    console.log("\n" + bold(title) + " (" + grouped[type].length + ")");
-    console.log(ISSUE_DESCRIPTIONS[type]);
+const warningIssueTypes = getIssueTypes()
+    .filter((type) => WARNING_ISSUE_TYPES.includes(type));
 
-    for (const issue of grouped[type]) {
-        console.log("\n" + indentText(makePrettyDetails(issue), 1));
-        console.log("\n" + indentText(generateStackTrace(issue.stack), 4));
-    }
-    console.log();
+if (warningIssueTypes.length !== 0) {
+    console.log(yellow(bold("--------- WARNINGS ---------")));
+    console.log(warningIssueTypes.map((type) => getIssueTypeSummary(type)).join("\n"));
 }
 
+const issueTypes = getIssueTypes()
+    .filter((type) => !WARNING_ISSUE_TYPES.includes(type));
+
+console.log(red(bold("---------- ISSUES ----------")));
+console.log(issueTypes.map((type) => getIssueTypeSummary(type)).join("\n"));
+
 const current = getTotal();
-console.log(`Checking completed and found ${bold(current.toString())} issues.`);
+console.log(`\nChecking completed and found ${bold(current.toString())} issues.`);
 if (args.fix) console.log(`Fixed issues in ${bold(fixed.toString())} places.`);
 
 if (current == 0 || getIssueTypes().every((type) => WARNING_ISSUE_TYPES.includes(type))) {
@@ -219,6 +224,18 @@ function getIssues() {
         allowHtmlExtension: args["allow-ext-html"],
         includeRefDirectory: args["include-ref"],
     });
+}
+
+function getIssueTypeSummary(type: Issue["type"]): string {
+    const title = `${bold(ISSUE_TITLES[type])} (${grouped[type].length})`;
+    const description = ISSUE_DESCRIPTIONS[type];
+    const issueInfo = grouped[type].map((issue) => {
+        return [
+            indentText(makePrettyDetails(issue), 1),
+            indentText(generateStackTrace(issue.stack), 4),
+        ].join("\n");
+    }).join("\n\n");
+    return `\n${title}\n${description}\n\n${issueInfo}`;
 }
 
 function makePrettyDetails(issue: Issue) {
