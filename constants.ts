@@ -1,3 +1,5 @@
+import { globToRegExp } from "./deps/std/path.ts";
+
 export const FIXABLE_ISSUE_TYPES = ["redirected", "missing_anchor", "empty_anchor", "wrong_extension", "disallow_extension"];
 
 export const ISSUE_TYPES = [
@@ -40,9 +42,10 @@ export const MANUAL_REDIRECTIONS: string[] = [
 ];
 
 /** Websites protected by Cloudflare's DDos Protection Services */
-export const CLOUDFLARE_PROTECTED: string[] = [
+export const CLOUDFLARE_PROTECTED_HOSTNAMES = [
+    "*.cloudflare.com",
     // "www.scaleway.com",
-];
+].map((origin) => globToRegExp(origin));
 
 export const FETCH_OPTIONS = {
     method: "GET",
@@ -112,5 +115,6 @@ local documents is prohibited. Remove the following extensions.`,
 There are local alternatives available for the following links, and they should be replaced
 with the local alternatives.`,
     inaccessible: `\
-The external link is inaccessible to the tool. They should be checked manually`,
+The external link is inaccessible to the tool. It is advised to check out the site manually
+and take actions if necessary.`,
 };

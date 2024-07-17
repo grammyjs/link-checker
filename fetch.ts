@@ -1,4 +1,4 @@
-import { CLOUDFLARE_PROTECTED } from "./constants.ts";
+import { CLOUDFLARE_PROTECTED_HOSTNAMES } from "./constants.ts";
 import { ACCEPTABLE_NOT_OK_STATUS, MANUAL_REDIRECTIONS, VALID_REDIRECTIONS } from "./constants.ts";
 import { DOMParser } from "./deps/deno_dom.ts";
 import { bold, magenta, red } from "./deps/std/fmt.ts";
@@ -134,6 +134,22 @@ export function isValidAnchor(all: Set<string>, url: string, anchor: string) {
     return false;
 }
 
+function isProtectedByCloudflare(response: Response) {
+    return response.status === 403 && (response.headers.has("cf-ray") || response.headers.has("cf-mitigated") ||
+        response.headers.get("server") === "cloudflare");
+}
+
+const knownProtectionMemo = new Map<string, boolean>();
+
+function isCloudlfareProtectionKnown(hostname: string) {
+    const cached = knownProtectionMemo.get(hostname);
+    if (cached != null) return cached;
+    const isKnown = CLOUDFLARE_PROTECTED_HOSTNAMES
+        .some((rule) => rule.test(hostname));
+    knownProtectionMemo.set(hostname, isKnown);
+    return isKnown;
+}
+
 export async function checkExternalUrl(url: string, utils: { domParser: DOMParser }) {
     const issues: ExternalLinkIssue[] = [];
     const transformed = transformURL(url);
@@ -145,23 +161,19 @@ export async function checkExternalUrl(url: string, utils: { domParser: DOMParse
     }
 
     const { hostname } = new URL(url);
-    if (
-        response.status === 403 &&
-        (response.headers.has("cf-ray") || response.headers.has("cf-mitigated") ||
-            response.headers.get("server") === "cloudflare")
-    ) {
+    if (isProtectedByCloudflare(response)) {
         issues.push({
             type: "inaccessible",
             reference: url,
             reason: "The website is protected by Cloudflare DDoS Protection Services." +
-                (!CLOUDFLARE_PROTECTED.includes(hostname)
-                    ? `\
-The site seems to satisfy the checks for a site with Cloudflare DDoS Protection Services enabled, but the site ${bold(hostname)}\
+                (!isCloudlfareProtectionKnown(hostname)
+                    ? ` \
+The site seems to satisfy the checks for a site with Cloudflare DDoS Protection Services enabled, but the site ${bold(hostname)} \
 isn't included in the list of acknowledged Cloudflare protected list. Please add this to the list by opening a pull request.`
                     : ""),
         });
         return { issues };
-    } else if (CLOUDFLARE_PROTECTED.includes(hostname)) {
+    } else if (isCloudlfareProtectionKnown(hostname)) {
         // No signs of cloudflare protection but still included in the list.
         // And since its accessible now, and can be checked, don't return rn.
         issues.push({
