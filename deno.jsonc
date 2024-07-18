@@ -6,7 +6,8 @@
         "proseWrap": "preserve"
     },
     "tasks": {
+        "check": "deno fmt --check && deno lint && deno check **/*.ts",
         "dev": "deno fmt && deno lint && deno check **/*.ts",
-        "test": "deno test --allow-env --allow-read"
+        "test": "deno test --allow-env"
     }
 }
