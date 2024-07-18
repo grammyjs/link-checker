@@ -1,10 +1,10 @@
 import { FIXABLE_ISSUE_TYPES, ISSUE_DESCRIPTIONS, ISSUE_TITLES, WARNING_ISSUE_TYPES } from "./constants.ts";
 import { parse, stringify } from "./deps/oson.ts";
 import { parseArgs, Spinner } from "./deps/std/cli.ts";
-import { blue, bold, cyan, dim, green, red, strikethrough, underline, yellow } from "./deps/std/fmt.ts";
-import { extname, join, resolve } from "./deps/std/path.ts";
+import { blue, bold, cyan, green, red, yellow } from "./deps/std/fmt.ts";
+import { join, resolve } from "./deps/std/path.ts";
 
-import { processIssues } from "./issues.ts";
+import { makePrettyDetails, processIssues } from "./issues.ts";
 import { FixableIssue, Issue, IssueWithStack, Stack } from "./types.ts";
 import { execute, getPossibleMatches, indentText, parseLink } from "./utilities.ts";
 import { readMarkdownFiles } from "./website.ts";
@@ -238,55 +238,6 @@ function getIssueTypeSummary(type: Issue["type"]): string {
         ].join("\n");
     }).join("\n\n");
     return `\n${title}\n${description}\n\n${issueInfo}`;
-}
-
-function makePrettyDetails(issue: Issue) {
-    if ("reference" in issue) issue.reference = decodeURI(issue.reference);
-    if ("to" in issue) issue.to = decodeURI(issue.to), issue.from = decodeURI(issue.from);
-
-    switch (issue.type) {
-        case "unknown_link_format":
-            return `${underline(red(issue.reference))}`;
-        case "empty_dom":
-            return `${underline(red(issue.reference))}`;
-        case "not_ok_response":
-            return `[${red(issue.status.toString())}] ${underline(issue.reference)}`; // TODO: show issue.statusText
-        case "wrong_extension": {
-            const { root, anchor } = parseLink(issue.reference);
-            return `${root.slice(0, -extname(root).length)}\
-${bold(`${strikethrough(red(issue.actual))}${green(issue.expected)}`)}\
-${anchor ? dim("#" + anchor) : ""}`;
-        }
-        case "linked_file_not_found":
-            return `${dim(red(issue.reference))} (${yellow("path")}: ${issue.filepath})`;
-        case "redirected":
-            return `${underline(yellow(issue.from))} --> ${underline(green(issue.to))}`;
-        case "missing_anchor": {
-            const { root } = parseLink(issue.reference);
-            const possible = getPossibleMatches(issue.anchor, issue.allAnchors);
-            return `${underline(root)}${red(bold("#" + issue.anchor))}` +
-                (possible.length
-                    ? `\n${yellow("possible fix" + (possible.length > 1 ? "es" : ""))}: ${
-                        possible.map((match) => match).join(dim(", "))
-                    }`
-                    : "");
-        }
-        case "empty_anchor":
-            return `${underline(issue.reference)}${red(bold("#"))}`;
-        case "no_response":
-            return `${underline(issue.reference)}`;
-        case "disallow_extension": {
-            const { root, anchor } = parseLink(issue.reference);
-            return `${root.slice(0, -extname(root).length)}\
-${bold(strikethrough(red("." + issue.extension)))}${anchor ? dim("#" + anchor) : ""}`;
-        }
-        case "local_alt_available":
-            return `${cyan(issue.reference)}\n${issue.reason}`;
-        case "inaccessible":
-            return `${cyan(issue.reference)}\n${issue.reason}`;
-        default:
-            throw new Error("Invalid type of issue! This shouldn't be happening.");
-    }
 }
 
 /** Generate stacktrace for the report */

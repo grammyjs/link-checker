@@ -1,9 +1,10 @@
-import { yellow } from "./deps/std/fmt.ts";
+import { bold, cyan, dim, green, red, strikethrough, underline, yellow } from "./deps/std/fmt.ts";
 import { equal } from "./deps/std/assert.ts";
 
-import { findStringLocations } from "./utilities.ts";
+import { findStringLocations, getPossibleMatches, parseLink } from "./utilities.ts";
 import { Issue, IssueWithStack } from "./types.ts";
 import { SEARCH_PANIC_MESSAGE } from "./constants.ts";
+import { extname } from "./deps/std/path.ts";
 
 export function getSearchString(issue: Issue) {
     switch (issue.type) {
@@ -54,4 +55,53 @@ export async function processIssues(issues: Record<string, Issue[]>) {
         grouped[issue.type].push(issue);
         return grouped;
     }, {} as Record<Issue["type"], IssueWithStack[]>);
+}
+
+export function makePrettyDetails(issue: Issue) {
+    if ("reference" in issue) issue.reference = decodeURI(issue.reference);
+    if ("to" in issue) issue.to = decodeURI(issue.to), issue.from = decodeURI(issue.from);
+
+    switch (issue.type) {
+        case "unknown_link_format":
+            return `${underline(red(issue.reference))}`;
+        case "empty_dom":
+            return `${underline(red(issue.reference))}`;
+        case "not_ok_response":
+            return `[${red(issue.status.toString())}] ${underline(issue.reference)}`; // TODO: show issue.statusText
+        case "wrong_extension": {
+            const { root, anchor } = parseLink(issue.reference);
+            return `${root.slice(0, -extname(root).length)}\
+${bold(`${strikethrough(red(issue.actual))}${green(issue.expected)}`)}\
+${anchor ? dim("#" + anchor) : ""}`;
+        }
+        case "linked_file_not_found":
+            return `${dim(red(issue.reference))} (${yellow("path")}: ${issue.filepath})`;
+        case "redirected":
+            return `${underline(yellow(issue.from))} --> ${underline(green(issue.to))}`;
+        case "missing_anchor": {
+            const { root } = parseLink(issue.reference);
+            const possible = getPossibleMatches(issue.anchor, issue.allAnchors);
+            return `${underline(root)}${red(bold("#" + issue.anchor))}` +
+                (possible.length
+                    ? `\n${yellow("possible fix" + (possible.length > 1 ? "es" : ""))}: ${
+                        possible.map((match) => match).join(dim(", "))
+                    }`
+                    : "");
+        }
+        case "empty_anchor":
+            return `${underline(issue.reference)}${red(bold("#"))}`;
+        case "no_response":
+            return `${underline(issue.reference)}`;
+        case "disallow_extension": {
+            const { root, anchor } = parseLink(issue.reference);
+            return `${root.slice(0, -extname(root).length)}\
+${bold(strikethrough(red("." + issue.extension)))}${anchor ? dim("#" + anchor) : ""}`;
+        }
+        case "local_alt_available":
+            return `${cyan(issue.reference)}\n${issue.reason}`;
+        case "inaccessible":
+            return `${cyan(issue.reference)}\n${issue.reason}`;
+        default:
+            throw new Error("Invalid type of issue! This shouldn't be happening.");
+    }
 }
