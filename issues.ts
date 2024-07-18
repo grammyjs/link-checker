@@ -36,14 +36,17 @@ export async function processIssues(issues: Record<string, Issue[]>) {
                 return deduped;
             }, [] as { details: Issue; filepaths: string[] }[])
             .map(async (issue) => {
-                const stack = issue.filepaths.sort((a, b) => a.localeCompare(b)).map(async (filepath) => {
-                    const locations = await findStringLocations(filepath, getSearchString(issue.details));
-                    if (locations.length == 0) {
-                        console.error(filepath, getSearchString(issue.details), issue);
-                        console.error(yellow(SEARCH_PANIC_MESSAGE));
-                    }
-                    return { filepath, locations: locations.map(([line, columns]) => ({ line, columns })) };
-                });
+                const stack = issue.filepaths
+                    .filter((filepath, i, arr) => i === arr.lastIndexOf(filepath))
+                    .sort((a, b) => a.localeCompare(b))
+                    .map(async (filepath) => {
+                        const locations = await findStringLocations(filepath, getSearchString(issue.details));
+                        if (locations.length == 0) {
+                            console.error(filepath, getSearchString(issue.details), issue);
+                            console.error(yellow(SEARCH_PANIC_MESSAGE));
+                        }
+                        return { filepath, locations: locations.map(([line, columns]) => ({ line, columns })) };
+                    });
                 return { ...issue.details, stack: await Promise.all(stack) };
             }),
     )).reduce((grouped, issue) => {

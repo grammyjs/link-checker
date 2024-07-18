@@ -198,17 +198,19 @@ const warningIssueTypes = getIssueTypes()
 
 if (warningIssueTypes.length !== 0) {
     console.log(yellow(bold("--------- WARNINGS ---------")));
-    console.log(warningIssueTypes.map((type) => getIssueTypeSummary(type)).join("\n"));
+    console.log(warningIssueTypes.map((type) => getIssueTypeSummary(type)).join("\n") + "\n");
 }
 
 const issueTypes = getIssueTypes()
     .filter((type) => !WARNING_ISSUE_TYPES.includes(type));
 
-console.log(red(bold("---------- ISSUES ----------")));
-console.log(issueTypes.map((type) => getIssueTypeSummary(type)).join("\n"));
+if (issueTypes.length > 0) {
+    console.log(red(bold("---------- ISSUES ----------")));
+    console.log(issueTypes.map((type) => getIssueTypeSummary(type)).join("\n") + "\n");
+}
 
 const current = getTotal();
-console.log(`\nChecking completed and found ${bold(current.toString())} issues.`);
+console.log(`Checking completed and found ${bold(current.toString())} issues.`);
 if (args.fix) console.log(`Fixed issues in ${bold(fixed.toString())} places.`);
 
 if (current == 0 || getIssueTypes().every((type) => WARNING_ISSUE_TYPES.includes(type))) {

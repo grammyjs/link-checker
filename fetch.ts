@@ -173,16 +173,11 @@ isn't included in the list of acknowledged Cloudflare protected list. Please add
                     : ""),
         });
         return { issues };
-    } else if (isCloudlfareProtectionKnown(hostname)) {
-        // No signs of cloudflare protection but still included in the list.
-        // And since its accessible now, and can be checked, don't return rn.
-        issues.push({
-            type: "inaccessible",
-            reference: url,
-            reason:
-                "The site currently seems to not have Cloudflare protection enabled. Confirm this, and remove the entry from the list of protected websites.",
-        });
     }
+    // else if (isCloudflareProtectionKnown(hostname))
+    // No signs of cloudflare protection but still included in the list.
+    // And since its accessible now, and can be checked, don't return rn,
+    // or make an issue as this is probably covered by a wildcard.
 
     if (redirected && MANUAL_REDIRECTIONS.includes(transformed)) {
         return { issues };
