@@ -1,9 +1,10 @@
 import { error } from "./deps/common.ts";
 import { parseArgs } from "./deps/std/cli.ts";
 import { bold, green, red, yellow } from "./deps/std/fmt.ts";
+import { makePrettyDetails } from "./issues.ts";
 
-import { generateIssueList, prettySummary } from "./issues.ts";
 import { findIssues, TSDocLink, TSDocLinkIssue } from "./tsdoc.ts";
+import { indentText } from "./utilities.ts";
 
 const args = parseArgs(Deno.args, {
     string: ["module"],
@@ -49,11 +50,13 @@ const mappedIssues = issues.reduce<Record<string, TSDocLinkIssue[]>>((prev, issu
     return prev;
 }, {});
 
-console.log(prettySummary(mappedIssues).summary);
-
 for (const location of Object.keys(mappedIssues).sort((a, b) => a.localeCompare(b))) {
-    console.log(`\n${location}`);
-    console.log(generateIssueList(mappedIssues[location]));
+    console.log(`\n ${location}\n`);
+    console.log(
+        mappedIssues[location].map((issue) => {
+            return "  - " + indentText(makePrettyDetails(issue), 4).slice(4);
+        }).join("\n\n"),
+    );
 }
 
 function prettyLocation({ location, tag, name }: TSDocLink) {
