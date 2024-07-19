@@ -1,0 +1,35 @@
+name: Check and test
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+
+jobs:
+    format-and-lint:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Setup repo
+              uses: actions/checkout@v4
+
+            - uses: denoland/setup-deno@main
+              with:
+                  deno-version: v1.x
+
+            - name: fmt, lint and check
+              run: deno task check
+
+    test:
+        runs-on: ubuntu-latest
+        
+        steps:
+            - name: Setup repo
+              uses: actions/checkout@v4
+
+            - uses: denoland/setup-deno@main
+              with:
+                  deno-version: v1.x
+
+            - name: Run Tests
+              run: deno task test
