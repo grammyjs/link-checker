@@ -153,7 +153,8 @@ function isCloudlfareProtectionKnown(hostname: string) {
 export async function checkExternalUrl(url: string, utils: { domParser: DOMParser }) {
     const issues: ExternalLinkIssue[] = [];
     const transformed = transformURL(url);
-    const { response, redirected, redirectedUrl } = await fetchWithRetries(transformed);
+    const headers = new Headers({ "Accept": "text/html" });
+    const { response, redirected, redirectedUrl } = await fetchWithRetries(transformed, { headers });
 
     if (response == null) {
         issues.push({ type: "no_response", reference: url });
