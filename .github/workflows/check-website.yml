@@ -1,22 +1,22 @@
 name: Check website for broken links
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 */6 * * *'
+    workflow_dispatch:
+    schedule:
+        - cron: "0 */6 * * *"
 jobs:
-  check-website:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    check-website:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
 
-      - uses: denoland/setup-deno@v1
-        with:
-          deno-version: v1.x
+            - uses: denoland/setup-deno@v1
+              with:
+                  deno-version: v1.x
 
-      - name: Check the website source for broken links
-        env:
-          APP_ID: ${{ secrets.APP_ID }}
-          INSTALLATION_ID: ${{ secrets.INSTALLATION_ID }}
-          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
-          DIR: ${{ github.workspace }}
-        run: deno run --allow-sys --allow-net --allow-env --allow-read --allow-run scripts/check_website.ts 
+            - name: Check the website source for broken links
+              env:
+                  APP_ID: ${{ secrets.APP_ID }}
+                  INSTALLATION_ID: ${{ secrets.INSTALLATION_ID }}
+                  PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+                  DIR: ${{ github.workspace }}
+              run: deno run --allow-sys --allow-net --allow-env --allow-read --allow-run scripts/check_website.ts
