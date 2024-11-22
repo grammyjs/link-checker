@@ -6,7 +6,7 @@ import { join, resolve } from "./deps/std/path.ts";
 
 import { makePrettyDetails, processIssues } from "./issues.ts";
 import { FixableIssue, Issue, IssueWithStack, Stack } from "./types.ts";
-import { execute, getPossibleMatches, indentText, parseLink } from "./utilities.ts";
+import { getPossibleMatches, indentText, parseLink } from "./utilities.ts";
 import { readMarkdownFiles } from "./website.ts";
 
 const args = parseArgs(Deno.args, {
@@ -32,12 +32,9 @@ try {
     if (!result.isDirectory) throw new Deno.errors.NotFound();
 } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
-        console.log("Generating /ref directory");
-        const proc = execute(["deno", "task", "genapi"], { cwd: rootDirectory }).spawn();
-        if (!(await proc.status).success) {
-            console.log("failed to generate API reference documentation. try again");
-            Deno.exit(1);
-        }
+        console.error(red("Couldn't find the /ref directory containing generated API documentation."));
+        console.error(red("Please generate it by running the corresponding script and try again."));
+        Deno.exit(1);
     }
 }
 
