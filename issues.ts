@@ -1,4 +1,4 @@
-import { bold, cyan, dim, green, red, strikethrough, underline, yellow } from "./deps/std/fmt.ts";
+import { bold, cyan, dim, green, italic, red, strikethrough, underline, yellow } from "./deps/std/fmt.ts";
 import { equal } from "./deps/std/assert.ts";
 
 import { findStringLocations, getPossibleMatches, parseLink } from "./utilities.ts";
@@ -41,12 +41,25 @@ export async function processIssues(issues: Record<string, Issue[]>) {
                     .filter((filepath, i, arr) => i === arr.lastIndexOf(filepath))
                     .sort((a, b) => a.localeCompare(b))
                     .map(async (filepath) => {
-                        const locations = await findStringLocations(filepath, getSearchString(issue.details));
-                        if (locations.length == 0) {
-                            console.error(filepath, getSearchString(issue.details), issue);
-                            console.error(yellow(SEARCH_PANIC_MESSAGE));
+                        const searchString = getSearchString(issue.details);
+                        if (searchString.length > 0) {
+                            const locations = await findStringLocations(filepath, getSearchString(issue.details));
+                            if (locations.length == 0) {
+                                console.error(filepath, getSearchString(issue.details), issue);
+                                console.error(yellow(SEARCH_PANIC_MESSAGE));
+                            }
+                            return { filepath, locations: locations.map(([line, columns]) => ({ line, columns })) };
                         }
-                        return { filepath, locations: locations.map(([line, columns]) => ({ line, columns })) };
+
+                        console.error(
+                            yellow(`Searching for <empty search string> in the file ${filepath}. Details: `),
+                            issue.details,
+                        );
+                        return {
+                            filepath,
+                            /* FIXME: this definitely sucks, but this is for compat */
+                            locations: [{ line: -1, columns: [-1] }],
+                        };
                     });
                 return { ...issue.details, stack: await Promise.all(stack) };
             }),
@@ -58,7 +71,12 @@ export async function processIssues(issues: Record<string, Issue[]>) {
 }
 
 export function makePrettyDetails(issue: Issue) {
-    if ("reference" in issue) issue.reference = decodeURI(issue.reference);
+    if ("reference" in issue) {
+        issue.reference = decodeURI(issue.reference);
+        if (issue.reference.trim() === "") {
+            issue.reference = italic("<empty string>");
+        }
+    }
     if ("to" in issue) issue.to = decodeURI(issue.to), issue.from = decodeURI(issue.from);
 
     switch (issue.type) {

@@ -33,7 +33,7 @@ try {
 } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
         console.log("Generating /ref directory");
-        const proc = execute(["deno", "task", "docs:genapi"], { cwd: rootDirectory }).spawn();
+        const proc = execute(["deno", "task", "genapi"], { cwd: rootDirectory }).spawn();
         if (!(await proc.status).success) {
             console.log("failed to generate API reference documentation. try again");
             Deno.exit(1);
@@ -245,7 +245,11 @@ function generateStackTrace(stacktrace: Stack[]) {
     return stacktrace.map((stack) =>
         stack.locations.map((location) =>
             location.columns.map((column) =>
-                `at ${cyan(resolve(stack.filepath))}:${yellow(location.line.toString())}:${yellow(column.toString())}`
+                [
+                    `at ${cyan(resolve(stack.filepath))}`,
+                    location.line === -1 ? "?" : yellow(location.line.toString()),
+                    column === -1 ? "?" : yellow(column.toString()),
+                ].join(":")
             )
         ).flat()
     ).flat().join("\n");

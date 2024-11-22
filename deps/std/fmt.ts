@@ -4,6 +4,7 @@ export {
     cyan,
     dim,
     green,
+    italic,
     magenta,
     red,
     strikethrough,

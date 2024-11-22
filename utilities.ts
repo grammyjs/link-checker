@@ -79,6 +79,7 @@ export function getPossibleMatches(anchor: string, allAnchors: Set<string>) {
 
 function getColumns(haystack: string, needle: string) {
     const indices: number[] = [];
+    if (needle === "") throw new Error("Unexpected needle: an <empty string>???");
     while (haystack.includes(needle)) {
         const length = indices.push(haystack.indexOf(needle) + 1);
         haystack = haystack.slice(indices[length - 1]);
