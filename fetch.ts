@@ -87,8 +87,6 @@ export function isValidRedirection(from: URL, to: URL) {
             // Shortened https://youtu.be/{id} links redirecting to https://youtube.com/watch?v={id} links.
             (from.hostname === "youtu.be" && to.hostname === "www.youtube.com" && to.pathname === "/watch" &&
                 to.searchParams.get("v") === from.pathname.substring(1)) ||
-            // Simply a slash was removed or added (I don't think we should care).
-            (from.host === to.host && ((to.pathname + "/" === from.pathname) || (from.pathname + "/" === to.pathname))) ||
             // Maybe some search params was appended: like a language code or something.
             (from.host === to.host && from.pathname === to.pathname && from.searchParams.size !== to.searchParams.size) ||
             // Login redirections; e.g., Firebase Console -> Google Account Login
@@ -121,7 +119,7 @@ export function isValidAnchor(all: Set<string>, url: string, anchor: string) {
     const { hostname, pathname } = new URL(url);
 
     // Firebase's (generally Google's) Documentation sometimes messes up the HTML response
-    // from the fetch as the contents are lazy loaded. So, the following is a hack: (not reliable)
+    // from the fetch as the contents are lazy loaded. So, the following is a hack (not reliable):
     if (hostname === "firebase.google.com" && pathname.startsWith("/docs")) {
         for (let i = 1; i < 10; i++) { // It doesn't go up to 10 usually.
             const suffix = "_" + i;
