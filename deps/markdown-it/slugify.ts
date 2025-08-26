@@ -1,1 +1,1 @@
-export { slugify as slugifyPlugin } from "https://esm.sh/@mdit-vue/shared@2.0.0";
+export { slugify as slugifyPlugin } from "npm:@mdit-vue/shared@3.0.2";
