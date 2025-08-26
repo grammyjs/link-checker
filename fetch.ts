@@ -35,7 +35,7 @@ export function getFetchWithRetries(retryOnFail: boolean, maxRetries: number, fe
                 }
             } catch (err) {
                 error = err;
-                if (!retryOnFail) break;
+                if (!retryOnFail || !(err instanceof Error)) break;
                 if (err.name === "TimeoutError") console.error(`Timeout of ${timeout}ms reached`);
             }
 

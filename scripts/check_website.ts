@@ -31,6 +31,7 @@ const app = new App({ appId: Number(env.APP_ID), privateKey: env.PRIVATE_KEY });
 const octokit = await app.getInstallationOctokit(Number(env.INSTALLATION_ID));
 
 const me = await app.octokit.request("GET /app");
+if (!me.data) throw new Error(`Could not GET /app, returned ${me.data}`);
 const LOGIN = me.data.slug + "[bot]";
 
 const COMMIT_SHA = await getCommitSha(dir);
