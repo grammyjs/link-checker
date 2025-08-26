@@ -81,8 +81,8 @@ export async function findIssues(module: string) {
 }
 
 async function findLinks(module: string) {
-    const docNodes = await doc(module);
-    const jsDocNodes = stripSymbolsWithJSDocs(docNodes);
+    const docNodes = await doc([module]);
+    const jsDocNodes = stripSymbolsWithJSDocs(docNodes[module]);
     const linkLocations: Record<string, Set<TSDocLink>> = {};
 
     for (const { jsDoc, location } of jsDocNodes) {
