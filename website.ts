@@ -6,7 +6,7 @@ import { basename, dirname, extname, join, relative, resolve } from "./deps/std/
 import { blue, dim, magenta } from "./deps/std/fmt.ts";
 
 import { checkExternalUrl, isValidAnchor, transformURL } from "./fetch.ts";
-import { Issue, MissingAnchorIssue } from "./types.ts";
+import { Issue, MissingAnchorIssue, MissingGithubCommentIssue } from "./types.ts";
 import { getAnchors, parseLink, parseMarkdownContent } from "./utilities.ts";
 import { findGroupedLinksIssues, GroupedLinksResolved, groupLinks, resolveGroupedLinks } from "./group_links.ts";
 import { IGNORED_DIRECTORIES } from "./constants.ts";
@@ -274,15 +274,26 @@ async function checkRelativeLink(
 function findMissingAnchors(
     allAnchors: Record<string, Set<string>>,
     usedAnchors: Record<string, Record<string, Set<[anchor: string, reference: string]>>>,
-): Record<string, MissingAnchorIssue[]> {
-    const issues: Record<string, MissingAnchorIssue[]> = {};
+): Record<string, (MissingAnchorIssue | MissingGithubCommentIssue)[]> {
+    const issues: Record<string, (MissingAnchorIssue | MissingGithubCommentIssue)[]> = {};
     for (const link in usedAnchors) {
         const all = allAnchors[link] ?? new Set<string>();
+        const isGithubIssue = /^https?:\/\/github\.com\/[^/]+\/[^/]+\/issues\/\d+/.test(link);
         for (const fileWithAnchorMention in usedAnchors[link]) {
             for (const [anchor, reference] of usedAnchors[link][fileWithAnchorMention]) {
                 if (isValidAnchor(all, link, anchor)) continue;
                 issues[fileWithAnchorMention] ??= [];
-                issues[fileWithAnchorMention].push({ type: "missing_anchor", anchor, reference, allAnchors: all });
+                if (isGithubIssue && anchor.startsWith("issuecomment-")) {
+                    const commentId = anchor.replace("issuecomment-", "");
+                    issues[fileWithAnchorMention].push({
+                        type: "missing_github_comment",
+                        commentId,
+                        issueUrl: link,
+                        reference,
+                    });
+                } else {
+                    issues[fileWithAnchorMention].push({ type: "missing_anchor", anchor, reference, allAnchors: all });
+                }
             }
         }
     }

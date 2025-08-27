@@ -148,6 +148,46 @@ function isCloudlfareProtectionKnown(hostname: string) {
     return isKnown;
 }
 
+// Octokit instance injected by caller (optional). We avoid hard dependency so library users aren't forced to provide it.
+let _octokit: unknown | undefined;
+export function setOctokit(octokit: unknown) {
+    _octokit = octokit;
+}
+
+async function getGithubIssueCommentAnchors(owner: string, repo: string, issueNumber: number) {
+    if (
+        _octokit == null || typeof _octokit !== "object" || _octokit === null ||
+        typeof (_octokit as { request?: unknown }).request !== "function"
+    ) {
+        return { anchors: new Set<string>(), comments: new Set<string>() };
+    }
+    try {
+        const res = await (_octokit as {
+            request: (route: string, params: Record<string, unknown>) => Promise<{ status: number; data: { id?: number }[] }>;
+        }).request("GET /repos/{owner}/{repo}/issues/{issue_number}/comments", {
+            owner,
+            repo,
+            issue_number: issueNumber,
+            per_page: 100,
+        });
+        if (res.status !== 200) return { anchors: new Set<string>(), comments: new Set<string>() };
+        const anchors = new Set<string>();
+        const comments = new Set<string>();
+        for (const comment of res.data) {
+            // Anchor format used by GitHub for issue comments: issuecomment-<id>
+            if (comment.id != null) {
+                const anchor = `issuecomment-${comment.id}`;
+                anchors.add(anchor);
+                comments.add(String(comment.id));
+            }
+        }
+        return { anchors, comments };
+    } catch (_err) {
+        // Silently ignore API failures; fall back to normal behavior.
+        return { anchors: new Set<string>(), comments: new Set<string>() };
+    }
+}
+
 export async function checkExternalUrl(url: string, utils: { domParser: DOMParser }) {
     const issues: ExternalLinkIssue[] = [];
     const transformed = transformURL(url);
@@ -204,6 +244,25 @@ isn't included in the list of acknowledged Cloudflare protected list. Please add
         const document = utils.domParser.parseFromString(content, "text/html");
         if (document == null) throw new Error("Failed to parse the webpage: skipping");
         const anchors = getAnchors(document, { includeHref: true });
+
+        // GitHub issue comment support: if URL points to /{owner}/{repo}/issues/{number}
+        // augment anchors with issuecomment-<id> list from API so we can verify anchors referencing comments.
+        // Pattern: https://github.com/:owner/:repo/issues/:number
+        try {
+            const gh = new URL(url);
+            if (gh.hostname === "github.com") {
+                const parts = gh.pathname.split("/").filter(Boolean); // [owner, repo, 'issues', number]
+                if (parts.length >= 4 && parts[2] === "issues" && /^\d+$/.test(parts[3])) {
+                    const issueNumber = Number(parts[3]);
+                    const { anchors: commentAnchors } = await getGithubIssueCommentAnchors(parts[0], parts[1], issueNumber);
+                    // Merge anchor sets
+                    if (commentAnchors.size > 0) {
+                        for (const a of commentAnchors) anchors.add(a);
+                    }
+                }
+            }
+        } catch { /* ignore */ }
+
         return { issues, anchors, document };
     } catch (error) {
         issues.push({ type: "empty_dom", reference: url });

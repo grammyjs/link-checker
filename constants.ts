@@ -13,6 +13,7 @@ export const ISSUE_TYPES = [
     "linked_file_not_found",
     "redirected",
     "missing_anchor",
+    "missing_github_comment",
     "local_alt_available",
     "inaccessible",
 ] as const;
@@ -71,6 +72,7 @@ export const ISSUE_TITLES: Record<IssueType, string> = {
     no_response: "Empty responses",
     empty_anchor: "Empty anchors",
     missing_anchor: "Missing anchors",
+    missing_github_comment: "Missing GitHub comments",
     not_ok_response: "Non-OK responses",
     wrong_extension: "Wrong extensions",
     disallow_extension: "Disallowed extensions",
@@ -98,6 +100,8 @@ All links that doesn't follow this strict limit is listed below.`,
     linked_file_not_found: `The files linked do not exist at the given paths.`,
     redirected: `The links were redirected to a newer page or some other page according to the responses.`,
     missing_anchor: `Some links were pinned with an anchor. But the linked document doesn't have such an anchor.`,
+    missing_github_comment:
+        `Some links reference a specific GitHub issue comment by its anchor (issuecomment-<id>). That comment no longer exists or is not returned by the GitHub API. Update or remove these links.`,
     empty_anchor: `Restricts linking pages with no anchor destination. In other words, just '#'.`,
     no_response: `\
 The following links does not return any response (probably timed out). This could be a

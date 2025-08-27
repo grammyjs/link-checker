@@ -13,6 +13,7 @@ export function getSearchString(issue: Issue) {
         case "not_ok_response":
         case "no_response":
         case "missing_anchor":
+        case "missing_github_comment":
         case "empty_dom":
         case "disallow_extension":
         case "wrong_extension":
@@ -106,6 +107,8 @@ ${anchor ? dim("#" + anchor) : ""}`;
                     }`
                     : "");
         }
+        case "missing_github_comment":
+            return `${underline(issue.issueUrl)}${red(bold("#issuecomment-" + issue.commentId))}`;
         case "empty_anchor":
             return `${underline(issue.reference)}${red(bold("#"))}`;
         case "no_response":

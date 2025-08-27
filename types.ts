@@ -52,6 +52,11 @@ export interface MissingAnchorIssue extends BaseIssue {
     anchor: string;
     allAnchors: Set<string>;
 }
+export interface MissingGithubCommentIssue extends BaseIssue {
+    type: "missing_github_comment";
+    commentId: string; // numeric id as string extracted from #issuecomment-<id>
+    issueUrl: string; // canonical issue URL without the #issuecomment part
+}
 interface PreferLocalLinkIssue extends BaseIssue {
     type: "local_alt_available";
     reference: string;
@@ -68,6 +73,7 @@ export type ExternalLinkIssue =
     | NotOKResponseIssue
     | NoResponseIssue
     | MissingAnchorIssue
+    | MissingGithubCommentIssue
     | EmptyDOMIssue
     | PreferLocalLinkIssue
     | InaccessibleLinkIssue;
