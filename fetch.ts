@@ -1,7 +1,7 @@
 import { CLOUDFLARE_PROTECTED_HOSTNAMES } from "./constants.ts";
 import { ACCEPTABLE_NOT_OK_STATUS, MANUAL_REDIRECTIONS, VALID_REDIRECTIONS } from "./constants.ts";
 import { DOMParser } from "./deps/deno_dom.ts";
-import { bold, magenta, red } from "./deps/std/fmt.ts";
+import { blue, bold, magenta, red } from "./deps/std/fmt.ts";
 
 import { ExternalLinkIssue, FetchOptions, type ResponseInfo } from "./types.ts";
 import { fetchWithRetries, getAnchors, sleep } from "./utilities.ts";
@@ -162,6 +162,7 @@ async function getGithubIssueCommentAnchors(owner: string, repo: string, issueNu
         throw new TypeError("setOctokit has not been called with a valid value");
     }
     try {
+        console.log(blue("listing"), `${owner}/${repo}#${issueNumber}`);
         const res = await (_octokit as {
             request: (route: string, params: Record<string, unknown>) => Promise<{ status: number; data: { id?: number }[] }>;
         }).request("GET /repos/{owner}/{repo}/issues/{issue_number}/comments", {
