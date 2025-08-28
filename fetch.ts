@@ -159,7 +159,7 @@ async function getGithubIssueCommentAnchors(owner: string, repo: string, issueNu
         _octokit == null || typeof _octokit !== "object" || _octokit === null ||
         typeof (_octokit as { request?: unknown }).request !== "function"
     ) {
-        return { anchors: new Set<string>(), comments: new Set<string>() };
+        throw new TypeError("setOctokit has not been called with a valid value");
     }
     try {
         const res = await (_octokit as {
