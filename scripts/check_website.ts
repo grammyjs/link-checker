@@ -33,7 +33,7 @@ const octokit = await app.getInstallationOctokit(Number(env.INSTALLATION_ID));
 setOctokit(octokit);
 
 const me = await app.octokit.request("GET /app");
-if (!me.data) throw new Error(`Could not GET /app, returned ${me.data}`);
+if (!me.data) throw new Error(`Could not GET /app, returned ${Deno.inspect(me)}`);
 const LOGIN = me.data.slug + "[bot]";
 
 const COMMIT_SHA = await getCommitSha(dir);
