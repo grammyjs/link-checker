@@ -5,7 +5,7 @@ import { blue } from "./deps/std/fmt.ts";
 
 import { transformURL } from "./fetch.ts";
 import { findGroupedLinksIssues, GroupedLinksResolved, groupLinks, resolveGroupedLinks } from "./group_links.ts";
-import { ExternalLinkIssue, Issue } from "./types.ts";
+import { ExternalLinkIssue, Issue, MissingGithubCommentIssue } from "./types.ts";
 import { parseLink, parseMarkdownContent } from "./utilities.ts";
 import { checkExternalUrl } from "./fetch.ts";
 
@@ -41,13 +41,26 @@ export async function findIssues(module: string) {
         const { root, anchor } = parseLink(href);
         if (allAnchors[root] != null) {
             if (anchor != null && !allAnchors[root].has(anchor)) {
-                issues.push({
-                    type: "missing_anchor",
-                    anchor,
-                    loc: linkLocations[href],
-                    reference: root,
-                    allAnchors: allAnchors[root],
-                });
+                const url = new URL(root);
+                const isGithubIssue = url.hostname === "github.com" && /\/[^/]+\/[^/]+\/issues\/\d+/.test(url.pathname);
+                if (isGithubIssue && anchor.startsWith("issuecomment-")) {
+                    const missing: MissingGithubCommentIssue & { loc: Set<TSDocLink> } = {
+                        type: "missing_github_comment",
+                        commentId: anchor.replace("issuecomment-", ""),
+                        issueUrl: root,
+                        reference: root,
+                        loc: linkLocations[href],
+                    };
+                    issues.push(missing as unknown as TSDocLinkIssue);
+                } else {
+                    issues.push({
+                        type: "missing_anchor",
+                        anchor,
+                        loc: linkLocations[href],
+                        reference: root,
+                        allAnchors: allAnchors[root],
+                    });
+                }
             }
             continue;
         }
@@ -71,8 +84,21 @@ export async function findIssues(module: string) {
         allAnchors[root] = checkedLink.anchors ?? new Set();
 
         if (anchor != null && !allAnchors[root].has(anchor)) {
+            const url = new URL(root);
+            const isGithubIssue = url.hostname === "github.com" && /\/[^/]+\/[^/]+\/issues\/\d+/.test(url.pathname);
             for (const location of linkLocations[href]) {
-                issues.push({ type: "missing_anchor", loc: location, reference: root, anchor, allAnchors: allAnchors[root] });
+                if (isGithubIssue && anchor.startsWith("issuecomment-")) {
+                    const missing: MissingGithubCommentIssue & { loc: TSDocLink } = {
+                        type: "missing_github_comment",
+                        commentId: anchor.replace("issuecomment-", ""),
+                        issueUrl: root,
+                        reference: root,
+                        loc: location,
+                    };
+                    issues.push(missing as unknown as TSDocLinkIssue);
+                } else {
+                    issues.push({ type: "missing_anchor", loc: location, reference: root, anchor, allAnchors: allAnchors[root] });
+                }
             }
         }
     }
@@ -81,8 +107,8 @@ export async function findIssues(module: string) {
 }
 
 async function findLinks(module: string) {
-    const docNodes = await doc(module);
-    const jsDocNodes = stripSymbolsWithJSDocs(docNodes);
+    const docNodes = await doc([module]);
+    const jsDocNodes = stripSymbolsWithJSDocs(docNodes[module]);
     const linkLocations: Record<string, Set<TSDocLink>> = {};
 
     for (const { jsDoc, location } of jsDocNodes) {

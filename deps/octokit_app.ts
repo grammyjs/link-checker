@@ -1,1 +1,1 @@
-export { App } from "https://esm.sh/@octokit/app@14.0.2?dts";
+export { App } from "npm:@octokit/app@16.0.1";

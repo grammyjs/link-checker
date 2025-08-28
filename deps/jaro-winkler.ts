@@ -1,1 +1,1 @@
-export { default as distance } from "https://esm.sh/jaro-winkler@0.2.8";
+export { default as distance } from "npm:jaro-winkler@0.2.8";

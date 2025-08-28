@@ -3,6 +3,7 @@ import { join, relative, resolve } from "../deps/std/path.ts";
 import { parse, stringify } from "../deps/oson.ts";
 
 import { readMarkdownFiles } from "../website.ts";
+import { setOctokit } from "../fetch.ts";
 import { processIssues } from "../issues.ts";
 import { Issue, IssueWithStack, Stack } from "../types.ts";
 import { ISSUE_DESCRIPTIONS, ISSUE_TITLES, WARNING_ISSUE_TYPES } from "../constants.ts";
@@ -29,8 +30,10 @@ try {
 
 const app = new App({ appId: Number(env.APP_ID), privateKey: env.PRIVATE_KEY });
 const octokit = await app.getInstallationOctokit(Number(env.INSTALLATION_ID));
+setOctokit(octokit);
 
 const me = await app.octokit.request("GET /app");
+if (!me.data) throw new Error(`Could not GET /app, returned ${Deno.inspect(me)}`);
 const LOGIN = me.data.slug + "[bot]";
 
 const COMMIT_SHA = await getCommitSha(dir);
@@ -180,6 +183,8 @@ function makePrettyDetails(issue: Issue): string {
                         possible.map((anchor) => `\`${anchor}\``).join(", ")
                     : "");
         }
+        case "missing_github_comment":
+            return `${issue.issueUrl}#issuecomment-${issue.commentId}`;
         case "empty_anchor":
             return `${issue.reference}#`;
         case "no_response":

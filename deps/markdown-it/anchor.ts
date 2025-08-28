@@ -1,1 +1,1 @@
-export { default as anchorPlugin } from "https://esm.sh/markdown-it-anchor@8.6.7";
+export { default as anchorPlugin } from "npm:markdown-it-anchor@9.2.0";

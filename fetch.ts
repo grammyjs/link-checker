@@ -35,7 +35,7 @@ export function getFetchWithRetries(retryOnFail: boolean, maxRetries: number, fe
                 }
             } catch (err) {
                 error = err;
-                if (!retryOnFail) break;
+                if (!retryOnFail || !(err instanceof Error)) break;
                 if (err.name === "TimeoutError") console.error(`Timeout of ${timeout}ms reached`);
             }
 
@@ -87,8 +87,6 @@ export function isValidRedirection(from: URL, to: URL) {
             // Shortened https://youtu.be/{id} links redirecting to https://youtube.com/watch?v={id} links.
             (from.hostname === "youtu.be" && to.hostname === "www.youtube.com" && to.pathname === "/watch" &&
                 to.searchParams.get("v") === from.pathname.substring(1)) ||
-            // Simply a slash was removed or added (I don't think we should care).
-            (from.host === to.host && ((to.pathname + "/" === from.pathname) || (from.pathname + "/" === to.pathname))) ||
             // Maybe some search params was appended: like a language code or something.
             (from.host === to.host && from.pathname === to.pathname && from.searchParams.size !== to.searchParams.size) ||
             // Login redirections; e.g., Firebase Console -> Google Account Login
@@ -121,7 +119,7 @@ export function isValidAnchor(all: Set<string>, url: string, anchor: string) {
     const { hostname, pathname } = new URL(url);
 
     // Firebase's (generally Google's) Documentation sometimes messes up the HTML response
-    // from the fetch as the contents are lazy loaded. So, the following is a hack: (not reliable)
+    // from the fetch as the contents are lazy loaded. So, the following is a hack (not reliable):
     if (hostname === "firebase.google.com" && pathname.startsWith("/docs")) {
         for (let i = 1; i < 10; i++) { // It doesn't go up to 10 usually.
             const suffix = "_" + i;
@@ -148,6 +146,46 @@ function isCloudlfareProtectionKnown(hostname: string) {
         .some((rule) => rule.test(hostname));
     knownProtectionMemo.set(hostname, isKnown);
     return isKnown;
+}
+
+// Octokit instance injected by caller (optional). We avoid hard dependency so library users aren't forced to provide it.
+let _octokit: unknown | undefined;
+export function setOctokit(octokit: unknown) {
+    _octokit = octokit;
+}
+
+async function getGithubIssueCommentAnchors(owner: string, repo: string, issueNumber: number) {
+    if (
+        _octokit == null || typeof _octokit !== "object" || _octokit === null ||
+        typeof (_octokit as { request?: unknown }).request !== "function"
+    ) {
+        throw new TypeError("setOctokit has not been called with a valid value");
+    }
+    try {
+        const res = await (_octokit as {
+            request: (route: string, params: Record<string, unknown>) => Promise<{ status: number; data: { id?: number }[] }>;
+        }).request("GET /repos/{owner}/{repo}/issues/{issue_number}/comments", {
+            owner,
+            repo,
+            issue_number: issueNumber,
+            per_page: 100,
+        });
+        if (res.status !== 200) return { anchors: new Set<string>(), comments: new Set<string>() };
+        const anchors = new Set<string>();
+        const comments = new Set<string>();
+        for (const comment of res.data) {
+            // Anchor format used by GitHub for issue comments: issuecomment-<id>
+            if (comment.id != null) {
+                const anchor = `issuecomment-${comment.id}`;
+                anchors.add(anchor);
+                comments.add(String(comment.id));
+            }
+        }
+        return { anchors, comments };
+    } catch (_err) {
+        // Silently ignore API failures; fall back to normal behavior.
+        return { anchors: new Set<string>(), comments: new Set<string>() };
+    }
 }
 
 export async function checkExternalUrl(url: string, utils: { domParser: DOMParser }) {
@@ -206,6 +244,25 @@ isn't included in the list of acknowledged Cloudflare protected list. Please add
         const document = utils.domParser.parseFromString(content, "text/html");
         if (document == null) throw new Error("Failed to parse the webpage: skipping");
         const anchors = getAnchors(document, { includeHref: true });
+
+        // GitHub issue comment support: if URL points to /{owner}/{repo}/issues/{number}
+        // augment anchors with issuecomment-<id> list from API so we can verify anchors referencing comments.
+        // Pattern: https://github.com/:owner/:repo/issues/:number
+        try {
+            const gh = new URL(url);
+            if (gh.hostname === "github.com") {
+                const parts = gh.pathname.split("/").filter(Boolean); // [owner, repo, 'issues', number]
+                if (parts.length >= 4 && parts[2] === "issues" && /^\d+$/.test(parts[3])) {
+                    const issueNumber = Number(parts[3]);
+                    const { anchors: commentAnchors } = await getGithubIssueCommentAnchors(parts[0], parts[1], issueNumber);
+                    // Merge anchor sets
+                    if (commentAnchors.size > 0) {
+                        for (const a of commentAnchors) anchors.add(a);
+                    }
+                }
+            }
+        } catch { /* ignore */ }
+
         return { issues, anchors, document };
     } catch (error) {
         issues.push({ type: "empty_dom", reference: url });
