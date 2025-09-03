@@ -1,14 +1,12 @@
 import { FIXABLE_ISSUE_TYPES, ISSUE_DESCRIPTIONS, ISSUE_TITLES, WARNING_ISSUE_TYPES } from "./constants.ts";
-import { App } from "./deps/octokit_app.ts";
 import { parse, stringify } from "./deps/oson.ts";
 import { parseArgs, Spinner } from "./deps/std/cli.ts";
 import { blue, bold, cyan, green, red, yellow } from "./deps/std/fmt.ts";
 import { join, resolve } from "./deps/std/path.ts";
-import { setOctokit } from "./fetch.ts";
 
 import { makePrettyDetails, processIssues } from "./issues.ts";
 import { FixableIssue, Issue, IssueWithStack, Stack } from "./types.ts";
-import { getEnv, getPossibleMatches, indentText, parseLink } from "./utilities.ts";
+import { getPossibleMatches, indentText, parseLink } from "./utilities.ts";
 import { readMarkdownFiles } from "./website.ts";
 
 const args = parseArgs(Deno.args, {
@@ -25,11 +23,6 @@ const args = parseArgs(Deno.args, {
 if (args._.length > 1) {
     console.log("Multiple directories were specified. Ignoring everything except the first one.");
 }
-
-const env = getEnv(false, "APP_ID", "INSTALLATION_ID", "PRIVATE_KEY");
-const app = new App({ appId: Number(env.APP_ID), privateKey: env.PRIVATE_KEY });
-const octokit = await app.getInstallationOctokit(Number(env.INSTALLATION_ID));
-setOctokit(octokit);
 
 const rootDirectory = (args._[0] ?? ".").toString();
 const cacheFile = join(rootDirectory, ".link-checker");
