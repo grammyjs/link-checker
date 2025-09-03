@@ -1,7 +1,8 @@
 import { CLOUDFLARE_PROTECTED_HOSTNAMES } from "./constants.ts";
 import { ACCEPTABLE_NOT_OK_STATUS, MANUAL_REDIRECTIONS, VALID_REDIRECTIONS } from "./constants.ts";
 import { DOMParser } from "./deps/deno_dom.ts";
-import { blue, bold, magenta, red } from "./deps/std/fmt.ts";
+import { bold, magenta, red } from "./deps/std/fmt.ts";
+import { getGithubIssueCommentAnchors } from "./group_links.ts";
 
 import { ExternalLinkIssue, FetchOptions, type ResponseInfo } from "./types.ts";
 import { fetchWithRetries, getAnchors, sleep } from "./utilities.ts";
@@ -148,30 +149,6 @@ function isCloudlfareProtectionKnown(hostname: string) {
     return isKnown;
 }
 
-/**
- * Fetches all comment anchors for a GitHub issue using the public GitHub API.
- * Returns a Set of anchor strings in the format 'issuecomment-<id>'.
- */
-async function getGithubIssueCommentAnchors(owner: string, repo: string, issueNumber: number): Promise<Set<string>> {
-    const url = `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/comments`;
-    const headers: Record<string, string> = {
-        "User-Agent": "Deno-link-checker-issue-fetcher",
-    };
-    try {
-        const response = await fetch(url, { headers });
-        if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        const comments = await response.json();
-        // comments is an array of objects with an 'id' property
-        const commentAnchors = comments.map((comment: { id: number }) => `issuecomment-${comment.id}`);
-        return new Set(commentAnchors);
-    } catch (error) {
-        console.error("Failed to fetch comments:", error);
-        return new Set();
-    }
-}
-
 export async function checkExternalUrl(url: string, utils: { domParser: DOMParser }) {
     const issues: ExternalLinkIssue[] = [];
     const transformed = transformURL(url);
@@ -228,23 +205,9 @@ isn't included in the list of acknowledged Cloudflare protected list. Please add
         const document = utils.domParser.parseFromString(content, "text/html");
         if (document == null) throw new Error("Failed to parse the webpage: skipping");
         const anchors = getAnchors(document, { includeHref: true });
-
-        // GitHub issue comment support: if URL points to /{owner}/{repo}/issues/{number}
-        // augment anchors with issuecomment-<id> list from API so we can verify anchors referencing comments.
-        // Pattern: https://github.com/:owner/:repo/issues/:number
-        const gh = new URL(url);
-        if (gh.hostname === "github.com") {
-            const parts = gh.pathname.split("/").filter(Boolean); // [owner, repo, 'issues', number]
-            if (parts.length >= 4 && parts[2] === "issues" && /^\d+$/.test(parts[3])) {
-                const issueNumber = Number(parts[3]);
-                const commentAnchors = await getGithubIssueCommentAnchors(parts[0], parts[1], issueNumber);
-                // Merge anchor sets
-                if (commentAnchors.size > 0) {
-                    for (const a of commentAnchors) anchors.add(a);
-                }
-            }
+        for (const commentAnchor of await getGithubIssueCommentAnchors(url)) {
+            anchors.add(commentAnchor);
         }
-
         return { issues, anchors, document };
     } catch (error) {
         issues.push({ type: "empty_dom", reference: url });

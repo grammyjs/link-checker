@@ -144,6 +144,27 @@ function getRenderedGithubFile(repo: string, path: string, branch: string) {
     );
 }
 
+export async function getGithubIssueCommentAnchors(url: string): Promise<string[]> {
+    // GitHub issue comment support: if URL points to /{owner}/{repo}/issues/{number}
+    // augment anchors with issuecomment-<id> list from API so we can verify anchors referencing comments.
+    // Pattern: https://github.com/:owner/:repo/issues/:number
+    const gh = new URL(url);
+    if (gh.hostname !== "github.com") return [];
+    const parts = gh.pathname.split("/").filter(Boolean); // [owner, repo, 'issues', number]
+    if (!(parts.length >= 4 && parts[2] === "issues" && /^\d+$/.test(parts[3]))) return [];
+
+    const owner = parts[0];
+    const repo = parts[1];
+    const issueNumber = Number(parts[3]);
+
+    console.log(dim(`  Listing comments (${owner}/${repo}#${issueNumber})`));
+    const comments = await makeGithubAPIRequest<Array<{ id: number }>>(
+        `GET /repos/${owner}/${repo}/issues/${issueNumber}/comments`,
+    );
+    if (!comments) return [];
+    return comments.map((comment: { id: number }) => `issuecomment-${comment.id}`);
+}
+
 async function makeGithubAPIRequest<T>(query: string, mediaType = "application/vnd.github+json") {
     const [method, ...path] = query.split(" ");
     const url = GITHUB_API_ROOT + path.join(" ");
