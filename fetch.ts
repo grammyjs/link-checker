@@ -148,44 +148,27 @@ function isCloudlfareProtectionKnown(hostname: string) {
     return isKnown;
 }
 
-// Octokit instance injected by caller (optional). We avoid hard dependency so library users aren't forced to provide it.
-let _octokit: unknown | undefined;
-export function setOctokit(octokit: unknown) {
-    _octokit = octokit;
-}
-
-async function getGithubIssueCommentAnchors(owner: string, repo: string, issueNumber: number) {
-    if (
-        _octokit == null || typeof _octokit !== "object" || _octokit === null ||
-        typeof (_octokit as { request?: unknown }).request !== "function"
-    ) {
-        throw new TypeError("setOctokit has not been called with a valid value");
-    }
+/**
+ * Fetches all comment anchors for a GitHub issue using the public GitHub API.
+ * Returns a Set of anchor strings in the format 'issuecomment-<id>'.
+ */
+async function getGithubIssueCommentAnchors(owner: string, repo: string, issueNumber: number): Promise<Set<string>> {
+    const url = `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}/comments`;
+    const headers: Record<string, string> = {
+        "User-Agent": "Deno-link-checker-issue-fetcher",
+    };
     try {
-        console.log(blue("listing"), `${owner}/${repo}#${issueNumber}`);
-        const res = await (_octokit as {
-            request: (route: string, params: Record<string, unknown>) => Promise<{ status: number; data: { id?: number }[] }>;
-        }).request("GET /repos/{owner}/{repo}/issues/{issue_number}/comments", {
-            owner,
-            repo,
-            issue_number: issueNumber,
-            per_page: 100,
-        });
-        if (res.status !== 200) return { anchors: new Set<string>(), comments: new Set<string>() };
-        const anchors = new Set<string>();
-        const comments = new Set<string>();
-        for (const comment of res.data) {
-            // Anchor format used by GitHub for issue comments: issuecomment-<id>
-            if (comment.id != null) {
-                const anchor = `issuecomment-${comment.id}`;
-                anchors.add(anchor);
-                comments.add(String(comment.id));
-            }
+        const response = await fetch(url, { headers });
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
         }
-        return { anchors, comments };
-    } catch (_err) {
-        // Silently ignore API failures; fall back to normal behavior.
-        return { anchors: new Set<string>(), comments: new Set<string>() };
+        const comments = await response.json();
+        // comments is an array of objects with an 'id' property
+        const commentAnchors = comments.map((comment: { id: number }) => `issuecomment-${comment.id}`);
+        return new Set(commentAnchors);
+    } catch (error) {
+        console.error("Failed to fetch comments:", error);
+        return new Set();
     }
 }
 
@@ -254,7 +237,7 @@ isn't included in the list of acknowledged Cloudflare protected list. Please add
             const parts = gh.pathname.split("/").filter(Boolean); // [owner, repo, 'issues', number]
             if (parts.length >= 4 && parts[2] === "issues" && /^\d+$/.test(parts[3])) {
                 const issueNumber = Number(parts[3]);
-                const { anchors: commentAnchors } = await getGithubIssueCommentAnchors(parts[0], parts[1], issueNumber);
+                const commentAnchors = await getGithubIssueCommentAnchors(parts[0], parts[1], issueNumber);
                 // Merge anchor sets
                 if (commentAnchors.size > 0) {
                     for (const a of commentAnchors) anchors.add(a);
