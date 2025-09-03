@@ -249,20 +249,18 @@ isn't included in the list of acknowledged Cloudflare protected list. Please add
         // GitHub issue comment support: if URL points to /{owner}/{repo}/issues/{number}
         // augment anchors with issuecomment-<id> list from API so we can verify anchors referencing comments.
         // Pattern: https://github.com/:owner/:repo/issues/:number
-        try {
-            const gh = new URL(url);
-            if (gh.hostname === "github.com") {
-                const parts = gh.pathname.split("/").filter(Boolean); // [owner, repo, 'issues', number]
-                if (parts.length >= 4 && parts[2] === "issues" && /^\d+$/.test(parts[3])) {
-                    const issueNumber = Number(parts[3]);
-                    const { anchors: commentAnchors } = await getGithubIssueCommentAnchors(parts[0], parts[1], issueNumber);
-                    // Merge anchor sets
-                    if (commentAnchors.size > 0) {
-                        for (const a of commentAnchors) anchors.add(a);
-                    }
+        const gh = new URL(url);
+        if (gh.hostname === "github.com") {
+            const parts = gh.pathname.split("/").filter(Boolean); // [owner, repo, 'issues', number]
+            if (parts.length >= 4 && parts[2] === "issues" && /^\d+$/.test(parts[3])) {
+                const issueNumber = Number(parts[3]);
+                const { anchors: commentAnchors } = await getGithubIssueCommentAnchors(parts[0], parts[1], issueNumber);
+                // Merge anchor sets
+                if (commentAnchors.size > 0) {
+                    for (const a of commentAnchors) anchors.add(a);
                 }
             }
-        } catch { /* ignore */ }
+        }
 
         return { issues, anchors, document };
     } catch (error) {
