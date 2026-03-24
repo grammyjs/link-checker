@@ -36,6 +36,7 @@ export const VALID_REDIRECTIONS: Record<string, string> = {
     "https://api.telegram.org/": "https://core.telegram.org/bots",
     "https://telegram.me/name-of-your-bot?start=custom-payload": "https://telegram.org/",
     "http://telegram.me/addstickers/": "https://telegram.org/",
+    "https://dash.zeabur.com": "https://zeabur.com",
 };
 
 export const MANUAL_REDIRECTIONS: string[] = [
@@ -45,6 +46,7 @@ export const MANUAL_REDIRECTIONS: string[] = [
 /** Websites protected by Cloudflare's DDos Protection Services */
 export const CLOUDFLARE_PROTECTED_HOSTNAMES = [
     "*.cloudflare.com",
+    "https://npmjs.org/package/*",
     // "www.scaleway.com",
 ].map((origin) => globToRegExp(origin));
 
