@@ -47,6 +47,7 @@ export const MANUAL_REDIRECTIONS: string[] = [
 export const CLOUDFLARE_PROTECTED_HOSTNAMES = [
     "*.cloudflare.com",
     "https://npmjs.org/package/*",
+    "hpanel.hostinger.com",
     // "www.scaleway.com",
 ].map((origin) => globToRegExp(origin));
 
