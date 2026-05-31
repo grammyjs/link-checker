@@ -46,7 +46,7 @@ export const MANUAL_REDIRECTIONS: string[] = [
 /** Websites protected by Cloudflare's DDos Protection Services */
 export const CLOUDFLARE_PROTECTED_HOSTNAMES = [
     "*.cloudflare.com",
-    "https://npmjs.org/package/*",
+    "www.npmjs.org",
     "hpanel.hostinger.com",
     // "www.scaleway.com",
 ].map((origin) => globToRegExp(origin));
